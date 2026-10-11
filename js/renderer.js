@@ -9,14 +9,15 @@ export function buildPieceEl(piece, cell, gap, cls = 'piece') {
   el.style.gridTemplateColumns = `repeat(${shape.w}, ${cell}px)`;
   el.style.gridTemplateRows = `repeat(${shape.h}, ${cell}px)`;
   el.style.gap = `${gap}px`;
-  for (const [r, c] of shape.cells) {
+  shape.cells.forEach(([r, c], i) => {
     const b = document.createElement('div');
-    b.className = 'block';
+    b.className = i === piece.bomb ? 'block bomb' : 'block';
+    if (i === piece.bomb) b.style.fontSize = `${Math.round(cell * 0.62)}px`;
     b.style.gridRow = r + 1;
     b.style.gridColumn = c + 1;
     b.style.setProperty('--c', colorVar(shape.familyIndex));
     el.appendChild(b);
-  }
+  });
   return el;
 }
 
@@ -55,11 +56,12 @@ export class Renderer {
     document.documentElement.style.setProperty('--tray-rows', rows);
   }
 
-  renderBoard(grid) {
+  renderBoard(grid, bombs = new Set()) {
     grid.forEach((v, i) => {
       const cell = this.cells[i];
       const filled = v !== null;
       cell.classList.toggle('filled', filled);
+      cell.classList.toggle('bomb', filled && bombs.has(i));
       cell.classList.remove('dead');
       if (filled) cell.style.setProperty('--c', colorVar(v));
       else cell.style.removeProperty('--c');
@@ -80,7 +82,8 @@ export class Renderer {
 
   // ---------- Tray ----------
 
-  renderTray(tray, fitsFn) {
+  /** fitFn(piece) → 'fits' | 'rotate' (fits only if turned) | 'no' */
+  renderTray(tray, fitFn) {
     this.trayEl.innerHTML = '';
     this.setTraySlots(tray.length);
     const cols = Math.min(tray.length, 3);
@@ -89,30 +92,55 @@ export class Renderer {
     const slotH = this.trayEl.clientHeight / rows;
     // Pieces are at most 5 blocks long; leave room for the grab padding.
     const mini = Math.max(8, Math.min(26, Math.floor((slotW - 22) / 5), Math.floor((slotH - 22) / 5)));
+    this.mini = mini;
     tray.forEach((piece, i) => {
       const slot = document.createElement('div');
       slot.className = 'slot';
       slot.dataset.slot = i;
       if (piece) {
-        const el = buildPieceEl(piece, mini, Math.max(1, Math.round(mini / 10)), 'piece mini');
-        el.dataset.pieceId = piece.id;
+        const el = this.trayPiece(piece, fitFn);
         el.style.animationDelay = `${i * 70}ms`;
-        if (!fitsFn(piece)) el.classList.add('unfit');
         slot.appendChild(el);
       }
       this.trayEl.appendChild(slot);
     });
   }
 
-  updateTrayFit(fitsFn, tray) {
+  trayPiece(piece, fitFn) {
+    const el = buildPieceEl(piece, this.mini, Math.max(1, Math.round(this.mini / 10)), 'piece mini');
+    el.dataset.pieceId = piece.id;
+    this.applyFit(el, fitFn(piece));
+    return el;
+  }
+
+  applyFit(el, fit) {
+    el.classList.toggle('unfit', fit !== 'fits');
+    el.classList.toggle('needs-rotate', fit === 'rotate');
+  }
+
+  /** Swap a tray piece for its rotated version with a spin. */
+  replaceTrayPiece(piece, fitFn) {
+    const old = this.pieceEl(piece.id);
+    if (!old) return;
+    const el = this.trayPiece(piece, fitFn);
+    el.classList.add('spin-in');
+    old.replaceWith(el);
+  }
+
+  pieceEl(pieceId) {
+    return this.trayEl.querySelector(`.piece[data-piece-id="${pieceId}"]`);
+  }
+
+  updateTrayFit(fitFn, tray) {
     this.trayEl.querySelectorAll('.piece').forEach((el) => {
       const piece = tray.find((p) => p && String(p.id) === el.dataset.pieceId);
-      if (piece) el.classList.toggle('unfit', !fitsFn(piece));
+      if (piece) this.applyFit(el, fitFn(piece));
     });
   }
 
   // ---------- Drag preview ----------
 
+  /** lines: { rows, cols, blast } — blast = extra cells a bomb would destroy */
   showPreview(piece, row, col, lines) {
     this.clearPreview();
     for (const [r, c] of piece.shape.cells) {
@@ -124,6 +152,10 @@ export class Renderer {
     const hint = new Set();
     for (const r of lines.rows) for (let c = 0; c < this.size; c++) hint.add(r * this.size + c);
     for (const c of lines.cols) for (let r = 0; r < this.size; r++) hint.add(r * this.size + c);
+    for (const i of lines.blast || []) {
+      this.cells[i].classList.add('will-blast');
+      this.lineHinted.push(this.cells[i]);
+    }
     for (const i of hint) {
       this.cells[i].classList.add('will-clear');
       this.cells[i].style.setProperty('--g', colorVar(piece.shape.familyIndex));
@@ -133,7 +165,7 @@ export class Renderer {
 
   clearPreview() {
     for (const c of this.previewed) c.classList.remove('ghost');
-    for (const c of this.lineHinted) c.classList.remove('will-clear');
+    for (const c of this.lineHinted) c.classList.remove('will-clear', 'will-blast');
     this.previewed = [];
     this.lineHinted = [];
   }

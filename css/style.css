@@ -313,11 +313,16 @@ button {
 
 /* ---------------------------------------------------------------- Tray */
 
-.tray {
+.tray-wrap {
+  position: relative;
   width: var(--board);
   min-width: min(100%, 340px);
-  height: var(--tray-h);
   flex-shrink: 0;
+}
+
+.tray {
+  width: 100%;
+  height: var(--tray-h);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: center;
@@ -376,6 +381,158 @@ button {
 .drag-ghost.returning {
   transition: transform 0.25s ease-in, opacity 0.25s;
   opacity: 0;
+}
+
+/* ---------------------------------------------------------------- Twists */
+
+.tokens {
+  position: absolute;
+  top: -13px;
+  right: 14px;
+  z-index: 2;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: none;
+  font-weight: 700;
+  font-size: calc(14px * var(--font-scale));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.tokens[hidden],
+[data-twist][hidden] {
+  display: none;
+}
+.tokens.empty {
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--panel-border);
+  text-shadow: none;
+  backdrop-filter: blur(6px);
+}
+.tokens.bump {
+  animation: bump 0.45s ease-out;
+}
+
+.block {
+  position: relative;
+}
+.cell.bomb::after,
+.block.bomb::after {
+  content: '💣';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  animation: tick 1s ease-in-out infinite;
+}
+.cell.bomb::after {
+  font-size: calc(var(--board) / var(--size) * 0.55);
+}
+.cell.bomb::before,
+.block.bomb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px #ff3b30, 0 0 10px #ff7b1c;
+  animation: fuse 0.8s ease-in-out infinite alternate;
+}
+
+.cell.will-blast {
+  box-shadow: inset 0 0 0 3px #ff5a1f, 0 0 14px #ff7b1c !important;
+  animation: pulse 0.35s ease-in-out infinite alternate;
+}
+
+.piece.mini {
+  position: relative;
+}
+.piece.mini.needs-rotate {
+  opacity: 0.8;
+  filter: grayscale(0.25);
+}
+.piece.mini.needs-rotate::after {
+  content: '↻';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: system-ui, sans-serif;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: badge 0.8s ease-in-out infinite alternate;
+}
+.piece.mini.spin-in {
+  animation: spinIn 0.32s cubic-bezier(0.3, 1.5, 0.6, 1);
+}
+.piece.mini.wiggle {
+  animation: wiggle 0.4s ease-in-out;
+}
+
+.toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggle-ui {
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  position: relative;
+  transition: background 0.2s;
+}
+.toggle-ui::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle input:checked + .toggle-ui {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+.toggle input:checked + .toggle-ui::after {
+  transform: translateX(20px);
+  background: #fff;
+}
+.toggle input:focus-visible + .toggle-ui {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.toggle b {
+  display: block;
+  font-size: calc(15px * var(--font-scale));
+}
+.toggle small {
+  display: block;
+  color: var(--muted);
+  font-size: calc(12px * var(--font-scale));
+  line-height: 1.35;
 }
 
 /* ---------------------------------------------------------------- Clear FX */
@@ -448,6 +605,25 @@ button {
   font-size: calc(32px * var(--font-scale));
   color: var(--accent);
   animation: praiseIn 2s ease-out forwards;
+}
+.float-text.boom {
+  background: linear-gradient(180deg, #fff 10%, #ffd23f 45%, #ff3b30);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.4)) drop-shadow(0 0 16px #ff7b1c);
+}
+.float-text.token-text {
+  font-size: calc(24px * var(--font-scale));
+}
+.float-text.hint {
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20, 10, 30, 0.82);
+  color: #fff;
+  text-shadow: none;
+  animation: hintIn 2.4s ease-out forwards;
 }
 .float-text.combo-text {
   font-size: calc(26px * var(--font-scale));
@@ -875,6 +1051,49 @@ button {
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.6);
     filter: blur(6px);
+  }
+}
+@keyframes tick {
+  50% {
+    transform: scale(1.12) rotate(-6deg);
+  }
+}
+@keyframes fuse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes spinIn {
+  from {
+    transform: rotate(-90deg) scale(0.7);
+  }
+}
+@keyframes wiggle {
+  20%,
+  60% {
+    transform: translateX(-6px) rotate(-4deg);
+  }
+  40%,
+  80% {
+    transform: translateX(6px) rotate(4deg);
+  }
+}
+@keyframes hintIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -30%);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -70%);
   }
 }
 @keyframes modalIn {

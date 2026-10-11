@@ -59,8 +59,41 @@ export function randomPiece(rng = Math.random, score = 0) {
   return makePiece(`${fam.id}:${rot}`);
 }
 
-export function makePiece(key, id = nextId++) {
+/** `bomb` is the index into shape.cells that carries a bomb, or null. */
+export function makePiece(key, id = nextId++, bomb = null) {
   const shape = shapeByKey(key);
   if (!shape) throw new Error(`Unknown shape ${key}`);
-  return { id, key, shape };
+  return { id, key, shape, bomb };
+}
+
+// ---------------------------------------------------------------- Rotation
+
+const cellKey = (cells) => cells.map(([r, c]) => `${r},${c}`).sort().join(' ');
+
+/**
+ * Rotates a shape 90° clockwise. Returns the matching orientation's key and,
+ * for each original cell, its index in the rotated shape (so a bomb follows).
+ * Returns null for shapes that look the same rotated (O, monomino, 3×3).
+ */
+export function rotateShape(key) {
+  const shape = shapeByKey(key);
+  const turned = shape.cells.map(([r, c]) => [c, shape.h - 1 - r]);
+  const want = cellKey(turned);
+  const target = SHAPES.find((s) => s.family === shape.family && cellKey(s.cells) === want);
+  if (!target || target.key === key) return null;
+  const indexMap = turned.map(([r, c]) => target.cells.findIndex(([tr, tc]) => tr === r && tc === c));
+  return { key: target.key, indexMap };
+}
+
+/** Keys reachable from `key` with at most `turns` clockwise rotations. */
+export function orientations(key, turns) {
+  const keys = [key];
+  let k = key;
+  for (let i = 0; i < Math.min(turns, 3); i++) {
+    const next = rotateShape(k);
+    if (!next || keys.includes(next.key)) break;
+    keys.push(next.key);
+    k = next.key;
+  }
+  return keys;
 }

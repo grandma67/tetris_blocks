@@ -7,6 +7,18 @@ export const CONFIG = {
   boardSizes: [6, 7, 8, 9, 10],
   piecesRange: [1, 6],
 
+  // Optional twists, each toggled in Settings.
+  defaultTwists: { rotate: true, bombs: true },
+  rotate: {
+    start: 3,                   // tokens at the start of a game
+    max: 9,
+    earnLines: 3,               // clearing this many lines at once earns a token (so does a board clear)
+  },
+  bombs: {
+    chance: 0.1,                // per dealt piece
+    perBlastCell: 3,            // points for each extra block a blast destroys
+  },
+
   scoring: {
     perCell: 1,                 // points per block placed
     lineBase: 10,               // lines L cleared at once => lineBase * L*(L+1)/2

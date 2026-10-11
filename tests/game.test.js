@@ -6,6 +6,21 @@ import { CONFIG } from '../js/config.js';
 
 const N = CONFIG.boardSize;
 
+/** Random legal move; spends a rotate token only when nothing fits as-is. */
+function botMove(g, rng) {
+  const moves = [];
+  for (const p of g.tray.filter(Boolean))
+    for (let r = 0; r < g.size; r++) for (let c = 0; c < g.size; c++) if (g.canPlace(p, r, c)) moves.push([p.id, r, c]);
+  if (!moves.length) {
+    const p = g.tray.find((x) => x && g.fitsRotated(x));
+    assert.ok(p, 'not over implies a legal move or a useful rotation');
+    assert.ok(g.rotatePiece(p.id).ok);
+    return;
+  }
+  const [id, r, c] = moves[Math.floor(rng() * moves.length)];
+  assert.ok(g.tryPlace(id, r, c).ok);
+}
+
 function seeded(seed = 1) {
   return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
@@ -97,14 +112,7 @@ test('simulated games always terminate and keep score consistent', () => {
   for (let run = 0; run < 30; run++) {
     const g = new Game({ rng });
     let guard = 0;
-    while (!g.over && guard++ < 5000) {
-      const moves = [];
-      for (const p of g.tray.filter(Boolean))
-        for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (g.canPlace(p, r, c)) moves.push([p.id, r, c]);
-      assert.ok(moves.length > 0, 'not over implies a legal move exists');
-      const [id, r, c] = moves[Math.floor(rng() * moves.length)];
-      assert.ok(g.tryPlace(id, r, c).ok);
-    }
+    while (!g.over && guard++ < 5000) botMove(g, rng);
     assert.ok(g.over, 'random play should eventually lose');
     assert.ok(g.score >= g.stats.moves);
   }
@@ -139,13 +147,128 @@ test('random play terminates on every mode', () => {
   for (const size of [6, 10]) for (const pieces of [1, 6]) {
     const g = new Game({ size, pieces, rng });
     let guard = 0;
-    while (!g.over && guard++ < 20000) {
-      const p = g.tray.find((x) => x && g.fits(x));
-      const spots = [];
-      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (g.canPlace(p, r, c)) spots.push([r, c]);
-      const [r, c] = spots[Math.floor(rng() * spots.length)];
-      assert.ok(g.tryPlace(p.id, r, c).ok);
-    }
+    while (!g.over && guard++ < 20000) botMove(g, rng);
     assert.ok(g.over, `${size}x${size}/${pieces} should end`);
   }
+});
+
+// ---------------------------------------------------------------- Twists
+
+test('rotating spends a token and keeps the piece id', () => {
+  const g = new Game({ rng: seeded(31) });
+  g.tray = [makePiece('L:0'), makePiece('O:0'), null];
+  const id = g.tray[0].id;
+  const r = g.rotatePiece(id);
+  assert.ok(r.ok);
+  assert.equal(g.tray[0].key, 'L:1');
+  assert.equal(g.tray[0].id, id);
+  assert.equal(g.rotations, CONFIG.rotate.start - 1);
+  assert.equal(g.rotatePiece(g.tray[1].id).reason, 'symmetric', 'O does not change when rotated');
+  assert.equal(g.rotations, CONFIG.rotate.start - 1, 'no token spent on symmetric pieces');
+  g.rotations = 0;
+  assert.equal(g.rotatePiece(id).reason, 'empty');
+});
+
+test('rotation is unavailable when the twist is off', () => {
+  const g = new Game({ twists: { rotate: false, bombs: false }, rng: seeded(32) });
+  g.tray = [makePiece('L:0'), null, null];
+  assert.equal(g.rotations, 0);
+  assert.equal(g.rotatePiece(g.tray[0].id).ok, false);
+});
+
+test('a bomb follows its block when the piece rotates', () => {
+  const g = new Game({ rng: seeded(33) });
+  const p = makePiece('I4:0', undefined, 3); // bomb on the right end of a horizontal I
+  g.tray = [p, null, null];
+  g.rotatePiece(p.id);
+  const turned = g.tray[0];
+  assert.equal(turned.key, 'I4:1');
+  assert.deepEqual(turned.shape.cells[turned.bomb], [3, 0], 'right end becomes the bottom');
+});
+
+test('not game over while a rotation would make a piece fit', () => {
+  const g = new Game({ rng: seeded(34) });
+  // Only a vertical 1×4 gap is open in column 0.
+  g.grid = g.grid.map(() => 0);
+  for (let r = 0; r < 4; r++) g.grid[r * N] = null;
+  g.tray = [makePiece('I4:0'), null, null];
+  assert.equal(g.fits(g.tray[0]), false);
+  assert.equal(g.checkGameOver(), false);
+  g.rotations = 0;
+  assert.equal(g.checkGameOver(), true);
+});
+
+test('3+ line clears earn a rotate token', () => {
+  const g = new Game({ rng: seeded(35) });
+  for (let r = 0; r < 3; r++) for (let c = 1; c < N; c++) g.grid[r * N + c] = 0;
+  g.grid[N * (N - 1)] = 0;
+  g.tray = [makePiece('I3:1'), makePiece('M1:0'), null];
+  const res = g.tryPlace(g.tray[0].id, 0, 0);
+  assert.equal(res.lineCount, 3);
+  assert.equal(res.tokenEarned, true);
+  assert.equal(g.rotations, CONFIG.rotate.start + 1);
+});
+
+test('a bomb in a cleared line blasts its 3×3 area and chains', () => {
+  const g = new Game({ rng: seeded(36) });
+  // Row 2 nearly full; blocks above and below it to be blasted.
+  for (let c = 0; c < N - 1; c++) g.grid[2 * N + c] = 0;
+  g.grid[1 * N + 3] = 1; // above the bomb at (2,3)
+  g.grid[3 * N + 4] = 1; // below-right, carries a second bomb
+  g.grid[4 * N + 5] = 2; // within the second bomb's blast only
+  g.grid[7 * N + 7] = 3; // far away, survives
+  g.bombs = new Set([2 * N + 3, 3 * N + 4]);
+  g.tray = [makePiece('M1:0'), makePiece('M1:0'), null];
+  const res = g.tryPlace(g.tray[0].id, 2, N - 1);
+  assert.equal(res.lineCount, 1);
+  assert.deepEqual(res.explosions, [2 * N + 3, 3 * N + 4]);
+  assert.deepEqual(res.blasted.map((b) => b.index).sort((a, b) => a - b), [1 * N + 3, 3 * N + 4, 4 * N + 5]);
+  assert.equal(res.blastPoints, 3 * CONFIG.bombs.perBlastCell);
+  assert.equal(g.grid[7 * N + 7], 3);
+  assert.equal(g.bombs.size, 0);
+  assert.equal(g.grid.filter((v) => v !== null).length, 1);
+});
+
+test('placed bomb pieces leave a bomb on the board and preview shows the blast', () => {
+  const g = new Game({ rng: seeded(37) });
+  for (let c = 0; c < N - 1; c++) g.grid[c] = 0;
+  g.grid[N + 6] = 1;
+  const bombPiece = makePiece('M1:0', undefined, 0);
+  g.tray = [bombPiece, makePiece('M1:0'), null];
+  const preview = g.previewClear(bombPiece, 0, N - 1);
+  assert.deepEqual(preview.rows, [0]);
+  assert.deepEqual(preview.blast, [N + 6]);
+
+  const g2 = new Game({ rng: seeded(38) });
+  const p = makePiece('O:0', undefined, 2);
+  g2.tray = [p, null, makePiece('M1:0')];
+  g2.tryPlace(p.id, 4, 4);
+  assert.deepEqual([...g2.bombs], [5 * N + 4]);
+});
+
+test('bomb pieces are dealt only when bombs are on', () => {
+  const on = new Game({ rng: seeded(39) });
+  const off = new Game({ twists: { rotate: true, bombs: false }, rng: seeded(39) });
+  let onBombs = 0;
+  for (let i = 0; i < 200; i++) {
+    on.dealRound();
+    off.dealRound();
+    onBombs += on.tray.filter((p) => p.bomb !== null).length;
+    assert.ok(off.tray.every((p) => p.bomb === null));
+  }
+  assert.ok(onBombs > 20 && onBombs < 120, `~10% of 600 pieces, got ${onBombs}`);
+});
+
+test('save/load keeps bombs, rotations and twists', () => {
+  const g = new Game({ rng: seeded(40) });
+  g.tray = [makePiece('T:0', undefined, 1), null, makePiece('M1:0')];
+  g.bombs = new Set([10]);
+  g.grid[10] = 2;
+  g.rotations = 5;
+  const json = JSON.parse(JSON.stringify(g.toJSON()));
+  const h = Game.fromJSON(json, { twists: CONFIG.defaultTwists });
+  assert.equal(h.tray[0].bomb, 1);
+  assert.deepEqual([...h.bombs], [10]);
+  assert.equal(h.rotations, 5);
+  assert.equal(Game.fromJSON(json, { twists: { rotate: false, bombs: false } }), null);
 });

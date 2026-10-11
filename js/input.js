@@ -10,6 +10,7 @@ export class DragController {
    * @param {(pieceId:number,row:number,col:number)=>void} o.onDrop
    * @param {() => void} o.onPick
    * @param {() => void} o.onCancel
+   * @param {(pieceId:number) => void} o.onTap   quick tap on a tray piece (rotate)
    * @param {(lines:object)=>object} o.previewLines
    */
   constructor(o) {
@@ -39,7 +40,12 @@ export class DragController {
     const w = piece.shape.w * m.step - (m.step - m.cell);
     const h = piece.shape.h * m.step - (m.step - m.cell);
 
-    this.drag = { piece, src, ghost, m, w, h, lift: touch ? m.cell * 1.1 + h / 2 : 0, row: null, col: null, valid: false };
+    this.drag = {
+      piece, src, ghost, m, w, h,
+      lift: touch ? m.cell * 1.1 + h / 2 : 0,
+      row: null, col: null, valid: false,
+      x0: e.clientX, y0: e.clientY, t0: performance.now(), moved: false,
+    };
     src.classList.add('dragging');
     this.position(e.clientX, e.clientY);
     this.onPick();
@@ -66,6 +72,7 @@ export class DragController {
   move(e) {
     if (!this.drag) return;
     e.preventDefault();
+    if (Math.hypot(e.clientX - this.drag.x0, e.clientY - this.drag.y0) > 10) this.drag.moved = true;
     this.position(e.clientX, e.clientY);
   }
 
@@ -73,6 +80,14 @@ export class DragController {
     if (!this.drag) return;
     const d = this.drag;
     this.renderer.clearPreview();
+    // A quick tap without dragging is a rotate request, not a failed drop.
+    if (!d.moved && performance.now() - d.t0 < 350) {
+      this.drag = null;
+      d.ghost.remove();
+      d.src.classList.remove('dragging');
+      this.onTap(d.piece.id);
+      return;
+    }
     if (d.valid) {
       d.ghost.remove();
       this.drag = null;

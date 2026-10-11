@@ -35,12 +35,22 @@ Each round deals 3 pieces (by default); once all are placed you get a new set. P
 generator tries to deal at least one piece that fits, and larger pieces become more common as your
 score grows. All tuning lives in `js/config.js`.
 
+### Twists (on by default, toggle in Settings)
+
+- **↻ Rotate tokens** — tap a tray piece to turn it 90° clockwise; each turn costs a token. You start
+  with 3 (max 9) and earn one for every 3+ line clear or board wipe. Pieces that only fit when rotated
+  show a ↻ badge, and the game isn't over while a rotation could still save you.
+- **💣 Bomb blocks** — ~10% of dealt pieces carry a bomb. When a bomb's row or column clears it blows
+  up the 3×3 area around it (+3 per extra block destroyed); bombs caught in a blast chain-react.
+  While dragging, the board previews the blast area in orange.
+
 ### Settings (☰ → ⚙️ Settings)
 
 - **Board size:** 6×6, 7×7, 8×8 (classic), 9×9, 10×10
 - **Pieces per round:** 1–6 (4–6 use a two-row tray)
 
-Changing either starts a new game. High scores are kept **separately for each combination**,
+Changing any setting starts a new game. High scores are kept **separately for each combination**
+(including which twists are on),
 since scores on a 10×10 board aren't comparable to a 6×6 one. The options are listed in `CONFIG.boardSizes` / `CONFIG.piecesRange`.
 
 High scores (top 10 per mode), settings and the in-progress game are stored in `localStorage`.

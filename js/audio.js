@@ -77,6 +77,18 @@ export const Sound = {
     noise({ dur: 0.8, vol: 0.2, delay: 0.1 });
   },
   newRound: () => tone({ freq: 440, to: 660, dur: 0.12, type: 'sine', vol: 0.15 }),
+  rotate() {
+    tone({ freq: 500, to: 900, dur: 0.08, type: 'triangle', vol: 0.2 });
+    tone({ freq: 700, to: 1200, dur: 0.06, type: 'sine', vol: 0.12, delay: 0.05 });
+  },
+  boom(delay = 0) {
+    noise({ dur: 0.7, vol: 0.5, delay });
+    tone({ freq: 140, to: 35, dur: 0.6, type: 'sine', vol: 0.6, delay });
+    tone({ freq: 80, to: 30, dur: 0.4, type: 'square', vol: 0.15, delay });
+  },
+  token() {
+    [0, 7, 12].forEach((st, i) => tone({ freq: 880 * 2 ** (st / 12), dur: 0.14, type: 'sine', vol: 0.22, delay: 0.25 + i * 0.07 }));
+  },
   gameOver() {
     [392, 330, 262, 196].forEach((f, i) => tone({ freq: f, to: f * 0.97, dur: 0.35, type: 'triangle', vol: 0.3, delay: i * 0.18 }));
   },

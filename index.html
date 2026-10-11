@@ -48,7 +48,10 @@
         <div class="board-fx" id="boardFx"></div>
       </main>
 
-      <section class="tray" id="tray" aria-label="Pieces"></section>
+      <div class="tray-wrap">
+        <section class="tray" id="tray" aria-label="Pieces"></section>
+        <button class="tokens" id="tokens" type="button" aria-label="Rotate tokens">↻ <b id="tokenCount">3</b></button>
+      </div>
     </div>
 
     <canvas id="fx" aria-hidden="true"></canvas>
@@ -87,6 +90,13 @@
         <div class="segmented" id="optPieces" role="radiogroup" aria-label="Pieces per round"></div>
         <div class="setting-hint" id="piecesHint"></div>
       </div>
+      <div class="setting">
+        <div class="setting-label">Twists</div>
+        <label class="toggle"><input type="checkbox" id="optRotate" /><span class="toggle-ui"></span>
+          <span><b>↻ Rotate tokens</b><small>Tap a piece to turn it. Start with 3, earn more with 3+ line clears.</small></span></label>
+        <label class="toggle"><input type="checkbox" id="optBombs" /><span class="toggle-ui"></span>
+          <span><b>💣 Bomb blocks</b><small>Clearing a bomb's line blows up the 3×3 around it.</small></span></label>
+      </div>
       <p class="muted small-note" id="settingsWarn">Changing these starts a new game.</p>
       <div class="row">
         <button class="btn ghost" data-close>Cancel</button>
@@ -115,6 +125,8 @@
         <li>💥 Clear several lines at once for big points.</li>
         <li>🔥 Keep clearing on consecutive moves to build a <b>combo</b> multiplier.</li>
         <li>✨ Empty the whole board for a huge bonus.</li>
+        <li data-twist="rotate">↻ <b>Tap</b> a piece to rotate it — each turn costs a token. Clear 3+ lines at once to earn more.</li>
+        <li data-twist="bombs">💣 When a bomb's row or column clears, it blows up everything around it — and other bombs too!</li>
         <li>☠️ If none of your pieces fits anywhere — game over!</li>
       </ul>
       <button class="btn" data-close>Got it</button>

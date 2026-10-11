@@ -1,7 +1,6 @@
 // App controller: wires the pure game model to rendering, input, sound & fx.
 import { CONFIG } from './config.js';
 import { Game } from './game.js';
-import { previewLines } from './board.js';
 import { Renderer } from './renderer.js';
 import { DragController } from './input.js';
 import { FX } from './fx.js';
@@ -14,9 +13,11 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const settings = Storage.getSettings();
 let theme = themeById(settings.theme);
-const gameOpts = () => ({ size: settings.boardSize, pieces: settings.pieces });
+const gameOpts = () => ({ size: settings.boardSize, pieces: settings.pieces, twists: settings.twists });
 let game = Game.fromJSON(Storage.getSavedGame(), gameOpts()) || new Game(gameOpts());
-const mode = () => modeKey(game.size, game.piecesPerRound);
+const mode = () => modeKey(game.size, game.piecesPerRound, game.twists);
+/** Tray hint: fits as-is, fits only if rotated, or not at all. */
+const fitOf = (p) => (game.fits(p) ? 'fits' : game.fitsRotated(p) ? 'rotate' : 'no');
 let bestAtStart = Storage.best(mode());
 let shownScore = game.score;
 let gameOverHandled = false;
@@ -83,12 +84,83 @@ function updateCombo() {
 }
 
 function renderAll() {
-  renderer.renderBoard(game.grid);
-  renderer.renderTray(game.tray, (p) => game.fits(p));
+  renderer.renderBoard(game.grid, game.bombs);
+  renderer.renderTray(game.tray, fitOf);
   $('score').textContent = game.score.toLocaleString();
   shownScore = game.score;
   updateBest();
   updateCombo();
+  updateTokens();
+  document.querySelectorAll('[data-twist]').forEach((el) => (el.hidden = !game.twists[el.dataset.twist]));
+}
+
+function updateTokens(bump = false) {
+  const el = $('tokens');
+  el.hidden = !game.twists.rotate;
+  $('tokenCount').textContent = game.rotations;
+  el.classList.toggle('empty', game.rotations === 0);
+  if (bump) {
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+}
+
+/** Short message floating over the tray. */
+function hint(text) {
+  const r = $('tray').getBoundingClientRect();
+  fx.floatText(text, r.left + r.width / 2, r.top + 24, 'hint');
+}
+
+// ---------------------------------------------------------------- Twists
+
+function onTap(pieceId) {
+  if (!game.twists.rotate) return;
+  const res = game.rotatePiece(pieceId);
+  if (res.ok) {
+    renderer.replaceTrayPiece(res.piece, fitOf);
+    renderer.updateTrayFit(fitOf, game.tray);
+    Sound.rotate();
+    updateTokens(true);
+    if (game.over) {
+      Storage.clearSavedGame();
+      setTimeout(handleGameOver, 400);
+    } else {
+      Storage.saveGame(game.toJSON());
+    }
+    return;
+  }
+  const el = renderer.pieceEl(pieceId);
+  el?.classList.remove('wiggle');
+  void el?.offsetWidth;
+  el?.classList.add('wiggle');
+  Sound.invalid();
+  if (res.reason === 'empty') hint('No rotations left — clear 3+ lines to earn one');
+  else if (res.reason === 'symmetric') hint('This piece looks the same rotated');
+}
+
+const BOOM_COLORS = ['#ff7b1c', '#ffd23f', '#ff3b30', '#ffffff'];
+
+function explode(res) {
+  const m = renderer.metrics();
+  res.explosions.forEach((b, i) => {
+    setTimeout(() => {
+      const p = renderer.cellCenter(b);
+      for (const c of BOOM_COLORS) fx.burst(p.x, p.y, c, 14, 1.6);
+      fx.shockwave(p.x, p.y, '#ff7b1c', m.step * 2.4, 10);
+      fx.shockwave(p.x, p.y, '#ffd23f', m.step * 1.4, 6);
+      fx.shake(2.5);
+      fx.flash();
+      Sound.boom();
+      if (i === 0) {
+        // Centered horizontally on the board so long text never clips at the edge.
+        const wrap = $('boardWrap').getBoundingClientRect();
+        const text = res.explosions.length > 1 ? `CHAIN x${res.explosions.length}!` : 'BOOM!';
+        fx.floatText(text, wrap.left + wrap.width / 2, p.y - m.step, 'praise t2 boom');
+      }
+    }, 90 + i * 170);
+  });
+  if (res.blasted.length) renderer.animateClear(res.blasted, res.explosions[0], 3);
 }
 
 // ---------------------------------------------------------------- Celebrations
@@ -149,7 +221,7 @@ function onDrop(pieceId, row, col) {
   const res = game.tryPlace(pieceId, row, col);
   if (!res.ok) return;
 
-  renderer.renderBoard(game.grid);
+  renderer.renderBoard(game.grid, game.bombs);
   const survivors = res.placedCells.filter((i) => game.grid[i] !== null);
   renderer.animatePlace(survivors);
   Sound.drop();
@@ -164,6 +236,18 @@ function onDrop(pieceId, row, col) {
     renderer.animateClear(res.cleared, res.placedCells[Math.floor(res.placedCells.length / 2)], intensity);
     Sound.clear(res.lineCount, res.combo);
     celebrate(res);
+    if (res.explosions.length) explode(res);
+  }
+
+  if (res.tokenEarned) {
+    const t = $('tokens').getBoundingClientRect();
+    setTimeout(() => {
+      fx.floatText('+1 ↻', t.left + t.width / 2, t.top, 'bonus token-text');
+      updateTokens(true);
+    }, 300);
+    Sound.token();
+  } else {
+    updateTokens();
   }
 
   animateScore();
@@ -171,13 +255,13 @@ function onDrop(pieceId, row, col) {
 
   if (res.newRound) {
     setTimeout(() => {
-      renderer.renderTray(game.tray, (p) => game.fits(p));
+      renderer.renderTray(game.tray, fitOf);
       Sound.newRound();
     }, 120);
   } else {
     const slot = $('tray').querySelector(`[data-piece-id="${pieceId}"]`);
     slot?.remove();
-    renderer.updateTrayFit((p) => game.fits(p), game.tray);
+    renderer.updateTrayFit(fitOf, game.tray);
   }
 
   if (res.gameOver) {
@@ -243,7 +327,7 @@ function closeAllModals() {
 
 function renderScores() {
   const list = Storage.getHighscores(mode());
-  $('scoresMode').textContent = modeLabel(game.size, game.piecesPerRound);
+  $('scoresMode').textContent = modeLabel(game.size, game.piecesPerRound, game.twists);
   $('scoresList').innerHTML = list.length
     ? list
         .map(
@@ -257,7 +341,15 @@ function renderScores() {
 // ---------------------------------------------------------------- Settings
 
 const SIZE_HINTS = { 6: 'Tight — little room to recover', 7: 'Snug', 8: 'Classic', 9: 'Roomy', 10: 'Huge — long games' };
-const modeLabel = (size, pieces) => `${size}×${size} board · ${pieces} piece${pieces > 1 ? 's' : ''} per round`;
+const modeLabel = (size, pieces, twists = {}) =>
+  `${size}×${size} board · ${pieces} piece${pieces > 1 ? 's' : ''} per round` +
+  (twists.rotate ? ' · ↻ rotate' : '') +
+  (twists.bombs ? ' · 💣 bombs' : '');
+const pendingChanged = () =>
+  pending.boardSize !== game.size ||
+  pending.pieces !== game.piecesPerRound ||
+  pending.twists.rotate !== game.twists.rotate ||
+  pending.twists.bombs !== game.twists.bombs;
 const pending = {};
 
 function segmented(el, values, current, label, onPick) {
@@ -279,7 +371,7 @@ function segmented(el, values, current, label, onPick) {
 function updateSettingsHints() {
   $('sizeHint').textContent = SIZE_HINTS[pending.boardSize] || '';
   $('piecesHint').textContent = `${pending.pieces} new piece${pending.pieces > 1 ? 's' : ''} once the tray is empty`;
-  const changed = pending.boardSize !== game.size || pending.pieces !== game.piecesPerRound;
+  const changed = pendingChanged();
   const inProgress = !game.over && game.stats.moves > 0;
   $('settingsWarn').style.visibility = changed && inProgress ? 'visible' : 'hidden';
   $('btnApplySettings').textContent = changed ? (inProgress ? 'Apply & restart' : 'Apply') : 'Done';
@@ -288,6 +380,9 @@ function updateSettingsHints() {
 function openSettings() {
   pending.boardSize = game.size;
   pending.pieces = game.piecesPerRound;
+  pending.twists = { ...game.twists };
+  $('optRotate').checked = pending.twists.rotate;
+  $('optBombs').checked = pending.twists.bombs;
   const [lo, hi] = CONFIG.piecesRange;
   const counts = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
   segmented($('optSize'), CONFIG.boardSizes, pending.boardSize, (v) => `${v}×${v}`, (v) => {
@@ -303,10 +398,10 @@ function openSettings() {
 }
 
 function applySettings() {
-  const changed = pending.boardSize !== game.size || pending.pieces !== game.piecesPerRound;
-  if (!changed) return closeAllModals();
+  if (!pendingChanged()) return closeAllModals();
   settings.boardSize = pending.boardSize;
   settings.pieces = pending.pieces;
+  settings.twists = { ...pending.twists };
   Storage.setSettings(settings);
   newGame();
 }
@@ -340,13 +435,14 @@ new DragController({
   trayEl: $('tray'),
   renderer,
   getGame: () => game,
-  previewLines: (piece, row, col) => previewLines(game.grid, game.size, piece.shape, row, col),
+  previewLines: (piece, row, col) => game.previewClear(piece, row, col),
   onDrop,
   onPick: () => {
     Sound.unlock();
     Sound.pick();
   },
   onCancel: () => Sound.invalid(),
+  onTap,
 });
 
 $('btnMenu').addEventListener('click', () => openModal('menuModal'));
@@ -359,6 +455,15 @@ $('btnSound').addEventListener('click', () => {
 $('btnPlayAgain').addEventListener('click', newGame);
 $('btnConfirmNew').addEventListener('click', newGame);
 $('btnApplySettings').addEventListener('click', applySettings);
+$('tokens').addEventListener('click', () => hint(game.rotations ? 'Tap a piece to rotate it' : 'Clear 3+ lines at once to earn a rotation'));
+$('optRotate').addEventListener('change', (e) => {
+  pending.twists.rotate = e.target.checked;
+  updateSettingsHints();
+});
+$('optBombs').addEventListener('change', (e) => {
+  pending.twists.bombs = e.target.checked;
+  updateSettingsHints();
+});
 $('btnClearScores').addEventListener('click', () => {
   Storage.clearHighscores(mode());
   bestAtStart = 0;
@@ -390,7 +495,7 @@ document.querySelectorAll('dialog').forEach((d) =>
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => renderer.renderTray(game.tray, (p) => game.fits(p)), 150);
+  resizeTimer = setTimeout(() => renderer.renderTray(game.tray, fitOf), 150);
 });
 
 // ---------------------------------------------------------------- Boot

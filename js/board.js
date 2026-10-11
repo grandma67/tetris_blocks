@@ -65,3 +65,37 @@ export function fitsAnywhere(grid, size, shape) {
 }
 
 export const isEmpty = (grid) => grid.every((v) => v === null);
+
+/**
+ * Bombs caught in a cleared line blow up the 3×3 area around them; bombs hit
+ * by a blast chain-react. `gridBefore` is the grid before lines were cleared,
+ * `clearedIdx` the indices the lines removed, `bombs` a Set of bomb indices.
+ * Returns the explosion centers (in detonation order) and the extra blasted
+ * cells (index + color) that weren't already part of a cleared line.
+ */
+export function detonate(gridBefore, size, clearedIdx, bombs) {
+  const gone = new Set(clearedIdx);
+  const queue = [...bombs].filter((b) => gone.has(b));
+  const exploded = new Set();
+  const explosions = [];
+  const blasted = [];
+  while (queue.length) {
+    const b = queue.shift();
+    if (exploded.has(b)) continue;
+    exploded.add(b);
+    explosions.push(b);
+    const br = Math.floor(b / size);
+    const bc = b % size;
+    for (let r = br - 1; r <= br + 1; r++) {
+      for (let c = bc - 1; c <= bc + 1; c++) {
+        if (r < 0 || c < 0 || r >= size || c >= size) continue;
+        const i = r * size + c;
+        if (gridBefore[i] === null || gone.has(i)) continue;
+        gone.add(i);
+        blasted.push({ index: i, color: gridBefore[i] });
+        if (bombs.has(i)) queue.push(i);
+      }
+    }
+  }
+  return { explosions, blasted };
+}

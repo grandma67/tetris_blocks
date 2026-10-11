@@ -27,7 +27,8 @@ export const DEFAULT_THEME = 'candy';
 const clamp = (v, lo, hi, d) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : d);
 
 /** Score tables are kept per mode, since board size and piece count change what a score means. */
-export const modeKey = (size, pieces) => `${size}x${pieces}`;
+export const modeKey = (size, pieces, twists = {}) =>
+  `${size}x${pieces}${twists.rotate || twists.bombs ? `+${twists.rotate ? 'r' : ''}${twists.bombs ? 'b' : ''}` : ''}`;
 // The default mode keeps the original key so existing high scores survive.
 const scoresKey = (mode) => (mode === modeKey(CONFIG.boardSize, CONFIG.piecesPerRound) ? 'highscores' : `highscores.${mode}`);
 
@@ -38,6 +39,7 @@ export const Storage = {
     const sizes = CONFIG.boardSizes;
     s.boardSize = sizes.includes(s.boardSize) ? s.boardSize : CONFIG.boardSize;
     s.pieces = clamp(s.pieces, ...CONFIG.piecesRange, CONFIG.piecesPerRound);
+    s.twists = { ...CONFIG.defaultTwists, ...(s.twists && typeof s.twists === 'object' ? s.twists : {}) };
     return s;
   },
   setSettings: (s) => write('settings', s),
