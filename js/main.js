@@ -578,6 +578,9 @@ function applySettings() {
   newGame();
 }
 
+// A little piece cluster (4×3) drawn with each theme's own block style.
+const PREVIEW_CELLS = [0, 0, 0, null, null, 0, 1, 1, 2, 2, null, 1];
+
 function buildThemeGrid() {
   $('themeGrid').innerHTML = '';
   for (const t of THEMES) {
@@ -587,11 +590,11 @@ function buildThemeGrid() {
     card.style.background = t.vars['--bg'];
     card.style.color = t.vars['--text'];
     card.style.fontFamily = t.vars['--font'];
+    card.style.setProperty('--radius', t.vars['--radius']);
     card.innerHTML = `
-      <div class="swatches">${t.palette
-        .slice(0, 6)
-        .map((c) => `<i class="swatch" style="--c:${c}"></i>`)
-        .join('')}</div>
+      <div class="swatches">${PREVIEW_CELLS.map((c) =>
+        c === null ? '<i></i>' : `<i class="block preview bs-${t.block}" style="--c:${t.palette[c]}"></i>`,
+      ).join('')}</div>
       <div class="theme-name">${t.icon} ${t.name}</div>`;
     card.addEventListener('click', () => {
       settings.themeChosen = true;
