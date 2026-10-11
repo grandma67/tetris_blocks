@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#00fff0" />
+    <meta name="description" content="Block Fit — drag tetris pieces onto the board, clear rows and columns, chase the high score." />
+    <title>Block Fit</title>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Orbitron:wght@500;700;900&family=Press+Start+2P&family=Quicksand:wght@500;700&display=swap"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <canvas id="ambient" aria-hidden="true"></canvas>
+
+    <div id="app">
+      <header class="topbar">
+        <button class="icon-btn" id="btnMenu" aria-label="Menu">☰</button>
+        <h1 class="logo">Block<span>Fit</span></h1>
+        <div class="top-actions">
+          <button class="icon-btn" id="btnTheme" aria-label="Change theme">🎨</button>
+          <button class="icon-btn" id="btnSound" aria-label="Toggle sound">🔊</button>
+        </div>
+      </header>
+
+      <section class="scorebar">
+        <div class="stat">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="score">0</div>
+        </div>
+        <div class="combo" id="combo" aria-live="polite"></div>
+        <div class="stat best">
+          <div class="stat-label">👑 Best</div>
+          <div class="stat-value" id="best">0</div>
+        </div>
+      </section>
+
+      <main class="board-wrap" id="boardWrap">
+        <div class="board" id="board"></div>
+        <div class="board-fx" id="boardFx"></div>
+      </main>
+
+      <section class="tray" id="tray" aria-label="Pieces"></section>
+    </div>
+
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div id="textLayer" aria-hidden="true"></div>
+
+    <!-- Menu -->
+    <dialog class="modal" id="menuModal">
+      <h2>Menu</h2>
+      <div class="menu-list">
+        <button class="btn" data-action="new">🔄 New Game</button>
+        <button class="btn" data-action="scores">🏆 High Scores</button>
+        <button class="btn" data-action="themes">🎨 Themes</button>
+        <button class="btn" data-action="help">❓ How to Play</button>
+      </div>
+      <button class="btn ghost" data-close>Close</button>
+    </dialog>
+
+    <!-- Themes -->
+    <dialog class="modal wide" id="themeModal">
+      <h2>Themes</h2>
+      <div class="theme-grid" id="themeGrid"></div>
+      <button class="btn ghost" data-close>Done</button>
+    </dialog>
+
+    <!-- High scores -->
+    <dialog class="modal" id="scoresModal">
+      <h2>🏆 High Scores</h2>
+      <ol class="scores" id="scoresList"></ol>
+      <div class="row">
+        <button class="btn ghost small" id="btnClearScores">Reset</button>
+        <button class="btn" data-close>Close</button>
+      </div>
+    </dialog>
+
+    <!-- Help -->
+    <dialog class="modal" id="helpModal">
+      <h2>How to Play</h2>
+      <ul class="help">
+        <li>🧩 Drag the pieces from the tray onto the board.</li>
+        <li>➖ Fill a full <b>row</b> or <b>column</b> to clear it.</li>
+        <li>🔁 Place all pieces to get a new set. Pieces can't be rotated.</li>
+        <li>💥 Clear several lines at once for big points.</li>
+        <li>🔥 Keep clearing on consecutive moves to build a <b>combo</b> multiplier.</li>
+        <li>✨ Empty the whole board for a huge bonus.</li>
+        <li>☠️ If none of your pieces fits anywhere — game over!</li>
+      </ul>
+      <button class="btn" data-close>Got it</button>
+    </dialog>
+
+    <!-- Confirm new game -->
+    <dialog class="modal" id="confirmModal">
+      <h2>Start over?</h2>
+      <p class="muted">Your current game will be lost.</p>
+      <div class="row">
+        <button class="btn ghost" data-close>Cancel</button>
+        <button class="btn" id="btnConfirmNew">New Game</button>
+      </div>
+    </dialog>
+
+    <!-- Game over -->
+    <dialog class="modal gameover" id="gameOverModal">
+      <div class="go-badge" id="goBadge">NEW HIGH SCORE!</div>
+      <h2>No more room!</h2>
+      <div class="go-score" id="goScore">0</div>
+      <div class="go-stats" id="goStats"></div>
+      <div class="row">
+        <button class="btn ghost" data-action="scores">🏆 Scores</button>
+        <button class="btn" id="btnPlayAgain">Play Again</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

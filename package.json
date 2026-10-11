@@ -1,0 +1,11 @@
+{
+  "name": "block-fit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Themeable block-placement puzzle game. Static site, no build step.",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node --test tests/*.test.js"
+  }
+}
