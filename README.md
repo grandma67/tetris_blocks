@@ -28,6 +28,20 @@ npm test           # logic unit tests (node:test, no deps)
   Reach it and you move on to a fresh board with +1 rotate token; from level 2 the board starts with
   grey stone blocks (more each level) and big pieces get more common. Run out of room before the goal
   and the run ends — high scores record the level reached. Tuning: `CONFIG.levels`.
+
+  **Seeded levels with twists.** The level number seeds that level's random generator, so level N
+  always gets the same twist, stone layout and opening pieces — for every player. Level 1 plays
+  normally; from level 2 about a third of levels play normally and the rest get a twist (from
+  level 8, sometimes two):
+  - 🪨 **Stones** — every 2 rounds a stone drops into a random empty cell; it only leaves when its
+    row or column clears.
+  - ⬇ **Gravity** — after every clear, blocks fall down; lines formed by the fall clear too, each
+    cascade raising the combo multiplier.
+  - ⬆ **Rising floor** — every 3 rounds the board shifts up and a junk row with one gap appears at
+    the bottom. Blocks pushed off the top end the run.
+
+  A badge above the tray shows the level's twists and counts down to the next stone / rise.
+  Tuning: `CONFIG.levels.modifiers`; logic in `js/modifiers.js`, PRNG in `js/rng.js`.
 - **∞ Endless** — the classic mode: play until no piece fits.
 
 Each mode keeps its own saved game and high-score tables.
@@ -107,6 +121,8 @@ css/style.css       layout, block styles, animations
 js/config.js        tuning
 js/pieces.js        piece catalogue + weighted generator
 js/board.js         pure grid logic
+js/modifiers.js     level twists: stones, gravity, rising floor
+js/rng.js           seedable PRNG (level number → seed)
 js/game.js          game state machine (score, combo, rounds, save/load)
 js/renderer.js      DOM board/tray rendering + clear animations
 js/input.js         pointer drag & drop (mouse/touch/pen)

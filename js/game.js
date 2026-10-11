@@ -3,6 +3,8 @@
 import { CONFIG } from './config.js';
 import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, isEmpty, detonate } from './board.js';
 import { randomPiece, makePiece, rotateShape, orientations, shapeByKey } from './pieces.js';
+import { SeededRng, levelSeed } from './rng.js';
+import { levelModifiers, applyGravity, riseFloor, pickStoneCell } from './modifiers.js';
 
 const NO_TWISTS = { rotate: false, bombs: false };
 /** Grid value for level stone blocks (rendered grey, not a piece color). */
@@ -16,7 +18,27 @@ export class Game {
     this.piecesPerRound = pieces;
     this.twists = { ...NO_TWISTS, ...twists };
     this.rng = rng;
+    this.levelRng = null; // levels mode: seeded from the level number
+    this.modifiers = [];
+    this.levelRound = 0;
+    this.roundEvents = null;
+    this.crushed = false;
     this.reset();
+  }
+
+  /** Random number: seeded per level in levels mode, free-running in endless. */
+  rand() {
+    return this.levelRng ? this.levelRng.next() : this.rng();
+  }
+
+  hasModifier(name) {
+    return this.modifiers.includes(name);
+  }
+
+  /** Rounds until the next stone drop / rising row (0 = when the tray refills next). */
+  roundsUntil(name) {
+    const every = name === 'rising' ? CONFIG.levels.modifiers.riseEvery : CONFIG.levels.modifiers.stoneEvery;
+    return (every - (this.levelRound % every)) % every;
   }
 
   reset() {
@@ -56,9 +78,12 @@ export class Game {
     this.combo = 0;
     this.movesSinceClear = 0;
     this.levelStart = this.score;
+    this.levelRng = new SeededRng(levelSeed(this.level));
+    this.modifiers = levelModifiers(this.level);
+    this.levelRound = 0;
     let stones = CONFIG.levels.stones(this.level, n);
     for (let guard = 0; stones > 0 && guard < 500; guard++) {
-      const i = Math.floor(this.rng() * n * n);
+      const i = Math.floor(this.rand() * n * n);
       if (this.grid[i] !== null) continue;
       this.grid[i] = STONE;
       const { rows, cols } = findFullLines(this.grid, n);
@@ -70,20 +95,89 @@ export class Game {
 
   /** Deal a fresh set of pieces, trying to ensure at least one can be placed. */
   dealRound() {
+    this.applyRoundModifiers();
     const { piecesPerRound } = this;
+    const rand = () => this.rand();
     let pieces;
     for (let attempt = 0; attempt < CONFIG.generator.fairnessAttempts; attempt++) {
-      pieces = Array.from({ length: piecesPerRound }, () => randomPiece(this.rng, this.difficulty));
+      pieces = Array.from({ length: piecesPerRound }, () => randomPiece(rand, this.difficulty));
       if (pieces.some((p) => fitsAnywhere(this.grid, this.size, p.shape))) break;
     }
     if (this.twists.bombs) {
       for (const p of pieces) {
-        if (this.rng() < CONFIG.bombs.chance) p.bomb = Math.floor(this.rng() * p.shape.cells.length);
+        if (this.rand() < CONFIG.bombs.chance) p.bomb = Math.floor(this.rand() * p.shape.cells.length);
       }
     }
     this.tray = pieces;
     this.stats.rounds++;
-    this.over = this.checkGameOver();
+    this.over = this.crushed || this.checkGameOver();
+  }
+
+  /** Stones / rising floor fire when the tray refills (never on a level's first round). */
+  applyRoundModifiers() {
+    const events = {};
+    const cfg = CONFIG.levels.modifiers;
+    const lr = this.levelRound;
+    if (this.mode === 'levels' && lr > 0) {
+      if (this.hasModifier('rising') && lr % cfg.riseEvery === 0) {
+        const r = riseFloor(this.grid, this.size, this.bombs, STONE, () => this.rand());
+        this.grid = r.grid;
+        this.bombs = r.bombs;
+        this.crushed = r.overflow;
+        events.rise = { gap: r.gap, overflow: r.overflow };
+      }
+      if (this.hasModifier('stones') && lr % cfg.stoneEvery === 0) {
+        const i = pickStoneCell(this.grid, this.size, () => this.rand());
+        if (i !== null) {
+          this.grid = this.grid.slice();
+          this.grid[i] = STONE;
+          events.stone = i;
+        }
+      }
+    }
+    this.levelRound++;
+    this.roundEvents = Object.keys(events).length ? events : null;
+  }
+
+  /**
+   * Gravity twist: after a clear, blocks fall; any lines that form clear too
+   * (each cascade bumps the combo). Returns one step per fall for animation.
+   */
+  cascade() {
+    const s = CONFIG.scoring;
+    const steps = [];
+    for (let guard = 0; guard < 30; guard++) {
+      const fall = applyGravity(this.grid, this.size, this.bombs);
+      if (!fall.fallen.length) break;
+      this.grid = fall.grid;
+      this.bombs = fall.bombs;
+      const lines = findFullLines(this.grid, this.size);
+      const lineCount = lines.rows.length + lines.cols.length;
+      const step = { grid: this.grid, bombs: new Set(this.bombs), fallen: fall.fallen, lines, lineCount, cleared: [], explosions: [], blasted: [], points: 0, combo: this.combo, after: this.grid, afterBombs: new Set(this.bombs) };
+      steps.push(step);
+      if (!lineCount) break;
+      this.combo++;
+      this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
+      this.stats.lines += lineCount;
+      const before = this.grid;
+      const res = clearLines(before, this.size, lines);
+      const { explosions, blasted } = detonate(before, this.size, res.cleared.map((c) => c.index), this.bombs);
+      const grid = res.grid.slice();
+      for (const b of blasted) grid[b.index] = null;
+      for (const c of [...res.cleared, ...blasted]) this.bombs.delete(c.index);
+      this.grid = grid;
+      this.stats.explosions += explosions.length;
+      Object.assign(step, {
+        cleared: res.cleared,
+        explosions,
+        blasted,
+        combo: this.combo,
+        points: Math.round(s.lineBase * (lineCount * (lineCount + 1)) / 2 * this.multiplierFor(this.combo)) + blasted.length * CONFIG.bombs.perBlastCell,
+        after: this.grid,
+        afterBombs: new Set(this.bombs),
+      });
+    }
+    return steps;
   }
 
   pieceById(id) {
@@ -175,6 +269,10 @@ export class Game {
     let blasted = [];
     let boardClear = false;
     let tokenEarned = false;
+    let steps = [];
+    let cascadePoints = 0;
+    let firstGrid = null;
+    let firstBombs = null;
 
     if (lineCount > 0) {
       this.combo++;
@@ -193,6 +291,12 @@ export class Game {
 
       linePoints = Math.round(s.lineBase * (lineCount * (lineCount + 1)) / 2 * this.multiplierFor(this.combo));
       blastPoints = blasted.length * CONFIG.bombs.perBlastCell;
+      firstGrid = this.grid;
+      firstBombs = new Set(this.bombs);
+      if (this.hasModifier('gravity')) {
+        steps = this.cascade();
+        cascadePoints = steps.reduce((sum, st) => sum + st.points, 0);
+      }
       if (isEmpty(this.grid)) {
         boardClear = true;
         linePoints += s.boardClearBonus;
@@ -206,8 +310,11 @@ export class Game {
       this.combo = 0;
     }
 
-    points += linePoints + blastPoints;
+    points += linePoints + blastPoints + cascadePoints;
     this.score += points;
+
+    // The board after this move and its cascades, before any refill events / level change.
+    const settled = { grid: this.grid, bombs: new Set(this.bombs) };
 
     // Levels mode: hitting the target moves straight on to a fresh board.
     let levelUp = null;
@@ -250,6 +357,13 @@ export class Game {
       boardClear,
       tokenEarned,
       levelUp,
+      firstGrid,
+      firstBombs,
+      settled,
+      steps,
+      cascadePoints,
+      roundEvents: newRound && !levelUp ? this.roundEvents : null,
+      crushed: this.crushed,
       rotations: this.rotations,
       newRound,
       gameOver: this.over,
@@ -262,6 +376,9 @@ export class Game {
       mode: this.mode,
       level: this.level,
       levelStart: this.levelStart,
+      levelRound: this.levelRound,
+      rngState: this.levelRng ? this.levelRng.state : null,
+      crushed: this.crushed,
       size: this.size,
       pieces: this.piecesPerRound,
       twists: this.twists,
@@ -299,6 +416,13 @@ export class Game {
       g.rotations = data.rotations ?? g.rotations;
       g.level = data.level ?? 1;
       g.levelStart = data.levelStart ?? 0;
+      if (g.mode === 'levels') {
+        g.modifiers = levelModifiers(g.level);
+        g.levelRound = data.levelRound ?? 1;
+        g.levelRng = new SeededRng(0);
+        g.levelRng.state = data.rngState ?? levelSeed(g.level);
+      }
+      g.crushed = !!data.crushed;
       g.stats = { ...g.stats, ...data.stats };
       g.over = data.over;
       if (g.grid.length !== g.size * g.size) return null;

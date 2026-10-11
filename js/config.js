@@ -13,6 +13,14 @@ export const CONFIG = {
     target: (n) => 100 + 60 * (n - 1) + 15 * (n - 1) ** 2,  // 100, 175, 280, 415, 580…
     stones: (n, size) => Math.min(Math.floor((n - 1) * 1.5), Math.floor(size * size * 0.3)),
     difficultyPerLevel: 350,    // levels ramp piece sizes like this many endless points
+    modifiers: {
+      from: 2,                  // level 1 always plays normally
+      originalChance: 0.35,     // chance a level has no twist
+      doubleFrom: 8,            // from here a level can get two twists
+      doubleChance: 0.35,
+      stoneEvery: 2,            // rounds between stone drops
+      riseEvery: 3,             // rounds between rising rows
+    },
   },
 
   // Optional twists, each toggled in Settings.

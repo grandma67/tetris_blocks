@@ -86,6 +86,11 @@ export const Sound = {
     tone({ freq: 140, to: 35, dur: 0.6, type: 'sine', vol: 0.6, delay });
     tone({ freq: 80, to: 30, dur: 0.4, type: 'square', vol: 0.15, delay });
   },
+  rise() {
+    tone({ freq: 70, to: 140, dur: 0.5, type: 'sawtooth', vol: 0.18 });
+    noise({ dur: 0.4, vol: 0.15 });
+  },
+  thud: () => tone({ freq: 180, to: 60, dur: 0.18, type: 'square', vol: 0.15 }),
   token() {
     [0, 7, 12].forEach((st, i) => tone({ freq: 880 * 2 ** (st / 12), dur: 0.14, type: 'sine', vol: 0.22, delay: 0.25 + i * 0.07 }));
   },

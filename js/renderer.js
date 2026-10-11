@@ -64,6 +64,7 @@ export class Renderer {
       const filled = v !== null;
       cell.classList.toggle('filled', filled);
       cell.classList.toggle('bomb', filled && bombs.has(i));
+      cell.classList.toggle('stone', filled && v >= 100);
       cell.classList.remove('dead');
       if (filled) cell.style.setProperty('--c', colorVar(v));
       else cell.style.removeProperty('--c');
@@ -181,6 +182,35 @@ export class Renderer {
       void cell.offsetWidth;
       cell.classList.add('pop');
     }
+  }
+
+  /** Gravity: moved blocks drop in from `rows` cells above. */
+  animateFall(fallen) {
+    const { step } = this.metrics();
+    for (const [index, rows] of fallen) {
+      const cell = this.cells[index];
+      cell.style.setProperty('--fall', `${rows * step}px`);
+      cell.classList.remove('fall');
+      void cell.offsetWidth;
+      cell.classList.add('fall');
+    }
+  }
+
+  /** Rising floor: the whole board slides up one row. */
+  animateRise() {
+    const { step } = this.metrics();
+    this.boardEl.style.setProperty('--rise', `${step}px`);
+    this.boardEl.classList.remove('rising');
+    void this.boardEl.offsetWidth;
+    this.boardEl.classList.add('rising');
+  }
+
+  /** A stone drops into one cell. */
+  animateStone(index) {
+    const cell = this.cells[index];
+    cell.classList.remove('stone-drop');
+    void cell.offsetWidth;
+    cell.classList.add('stone-drop');
   }
 
   /**

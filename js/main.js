@@ -8,6 +8,7 @@ import { Sound } from './audio.js';
 import { Storage, modeKey } from './storage.js';
 import { THEMES, themeById, applyTheme, colorFor } from './themes.js';
 import { SHAPES, makePiece } from './pieces.js';
+import { MODIFIERS } from './modifiers.js';
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -95,6 +96,7 @@ function renderAll() {
   updateCombo();
   updateTokens();
   updateLevelHud();
+  updateModBadge();
   document.querySelectorAll('[data-twist]').forEach((el) => (el.hidden = !game.twists[el.dataset.twist]));
 }
 
@@ -110,6 +112,32 @@ function updateLevelHud(complete = false) {
   $('levelProgress').textContent = complete ? 'Clear!' : `${done.toLocaleString()} / ${target.toLocaleString()}`;
   $('levelFill').style.width = `${complete ? 100 : (done / target) * 100}%`;
   $('levelBar').classList.toggle('full', complete);
+}
+
+function modifierSummary(g = game) {
+  return g.modifiers.map((m) => `${MODIFIERS[m].icon} ${MODIFIERS[m].name}`).join(' · ');
+}
+
+/** Badge above the tray: the level's twists and countdowns to the next event. */
+function updateModBadge() {
+  const el = $('modBadge');
+  const show = game.mode === 'levels' && game.modifiers.length > 0;
+  el.hidden = !show;
+  if (!show) return;
+  const when = (n) => (n === 0 ? 'next round' : `in ${n + 1} rounds`);
+  el.textContent = game.modifiers
+    .map((m) => {
+      const { icon, name, short } = MODIFIERS[m];
+      return m === 'gravity' ? `${icon} ${name}` : `${icon} ${short} ${when(game.roundsUntil(m))}`;
+    })
+    .join('  ·  ');
+}
+
+function levelIntro() {
+  const wrap = $('boardWrap').getBoundingClientRect();
+  const mods = modifierSummary();
+  fx.floatText(`Level ${game.level} · Goal ${game.levelTarget.toLocaleString()}`, wrap.left + wrap.width / 2, wrap.top + wrap.height / 2 - (mods ? 22 : 0), 'praise t1');
+  if (mods) setTimeout(() => fx.floatText(mods, wrap.left + wrap.width / 2, wrap.top + wrap.height / 2 + 30, 'hint'), 250);
 }
 
 function updateTokens(bump = false) {
@@ -239,14 +267,14 @@ function onDrop(pieceId, row, col) {
   const res = game.tryPlace(pieceId, row, col);
   if (!res.ok) return;
 
-  // On a level-up the model already moved on; show the finished board first.
-  const shownGrid = res.levelUp ? res.levelUp.grid : game.grid;
-  renderer.renderBoard(shownGrid, res.levelUp ? res.levelUp.bombs : game.bombs);
-  const survivors = res.placedCells.filter((i) => shownGrid[i] !== null);
-  renderer.animatePlace(survivors);
+  // The model has already resolved everything; replay it in order:
+  // drop & first clear → gravity cascades → refill events → level change / game over.
+  const firstGrid = res.lineCount ? res.firstGrid : res.settled.grid;
+  const firstBombs = res.lineCount ? res.firstBombs : res.settled.bombs;
+  renderer.renderBoard(firstGrid, firstBombs);
+  renderer.animatePlace(res.placedCells.filter((i) => firstGrid[i] !== null));
   Sound.drop();
 
-  // Floating score near the dropped piece.
   const anchor = renderer.cellCenter(res.placedCells[0]);
   fx.floatText(`+${res.points}`, anchor.x, anchor.y, 'points');
 
@@ -273,32 +301,88 @@ function onDrop(pieceId, row, col) {
   animateScore();
   updateCombo();
   updateLevelHud(!!res.levelUp);
+  Storage.saveGame(game.toJSON());
 
+  // Remove the used piece from the tray right away.
+  $('tray').querySelector(`[data-piece-id="${pieceId}"]`)?.remove();
+
+  const stepMs = 480;
+  const cascadeMs = res.steps.length ? 380 + res.steps.length * stepMs : 0;
+  res.steps.forEach((step, i) => setTimeout(() => playCascadeStep(step), 380 + i * stepMs));
+
+  const needsPause = cascadeMs > 0 || res.levelUp || res.roundEvents;
+  if (needsPause) busy = true;
+  setTimeout(() => afterSettle(res), cascadeMs);
+}
+
+/** One gravity step: blocks fall, then any lines they complete clear. */
+function playCascadeStep(step) {
+  renderer.renderBoard(step.grid, step.bombs);
+  renderer.animateFall(step.fallen);
+  Sound.thud();
+  if (!step.lineCount) return;
+  setTimeout(() => {
+    renderer.renderBoard(step.after, step.afterBombs);
+    renderer.flashLines(step.lines);
+    const center = step.cleared[Math.floor(step.cleared.length / 2)].index;
+    renderer.animateClear(step.cleared, center, step.lineCount + 1);
+    Sound.clear(step.lineCount, step.combo);
+    for (const { index, color } of step.cleared) {
+      const p = renderer.cellCenter(index);
+      fx.burst(p.x, p.y, colorFor(theme, color), 4, 1);
+    }
+    const wrap = $('boardWrap').getBoundingClientRect();
+    fx.floatText(`Cascade x${step.combo}! +${step.points}`, wrap.left + wrap.width / 2, wrap.top + wrap.height / 2, 'praise t1');
+    fx.shake(1);
+    if (step.explosions.length) explode(step);
+    updateCombo();
+  }, 200);
+}
+
+/** Everything after the board has settled: level change, refill events, tray, game over. */
+function afterSettle(res) {
   if (res.levelUp) {
-    busy = true;
     $('tray').querySelectorAll('.piece').forEach((el) => el.classList.add('leaving'));
-    Storage.saveGame(game.toJSON());
     setTimeout(() => levelComplete(res), res.lineCount ? 650 : 250);
     return;
   }
 
-  if (res.newRound) {
-    setTimeout(() => {
-      renderer.renderTray(game.tray, fitOf);
-      Sound.newRound();
-    }, 120);
-  } else {
-    const slot = $('tray').querySelector(`[data-piece-id="${pieceId}"]`);
-    slot?.remove();
-    renderer.updateTrayFit(fitOf, game.tray);
+  const ev = res.roundEvents;
+  if (ev) {
+    renderer.renderBoard(game.grid, game.bombs);
+    const wrap = $('boardWrap').getBoundingClientRect();
+    if (ev.rise) {
+      renderer.animateRise();
+      Sound.rise();
+      fx.shake(1.5);
+      fx.floatText(ev.rise.overflow ? 'Crushed!' : '⬆ Floor rises!', wrap.left + wrap.width / 2, wrap.top + wrap.height * 0.75, 'combo-text');
+    }
+    if (ev.stone !== undefined) {
+      renderer.animateStone(ev.stone);
+      setTimeout(() => {
+        Sound.thud();
+        fx.shake(0.6);
+      }, 250);
+    }
   }
 
-  if (res.gameOver) {
-    Storage.clearSavedGame(game.mode);
-    setTimeout(handleGameOver, res.lineCount ? 900 : 500);
-  } else {
-    Storage.saveGame(game.toJSON());
-  }
+  setTimeout(
+    () => {
+      if (res.newRound) {
+        renderer.renderTray(game.tray, fitOf);
+        Sound.newRound();
+      } else {
+        renderer.updateTrayFit(fitOf, game.tray);
+      }
+      updateModBadge();
+      busy = false;
+      if (res.gameOver) {
+        Storage.clearSavedGame(game.mode);
+        setTimeout(handleGameOver, res.lineCount ? 700 : 400);
+      }
+    },
+    ev ? 550 : res.newRound ? 120 : 0,
+  );
 }
 
 /** Level clear celebration, then reveal the next level's board. */
@@ -332,7 +416,8 @@ function levelComplete(res) {
     updateLevelHud();
     updateCombo();
     Sound.newRound();
-    fx.floatText(`Level ${game.level} · Goal ${game.levelTarget.toLocaleString()}`, cx, cy, 'praise t1');
+    updateModBadge();
+    levelIntro();
     busy = false;
     if (game.over) {
       Storage.clearSavedGame(game.mode);
@@ -403,7 +488,7 @@ function updateHome() {
   const lvGoing = lv && !lv.over && (lv.stats.moves > 0 || lv.level > 1);
   const enGoing = en && !en.over && en.stats.moves > 0;
   $('homeLevelsSub').textContent = lvGoing
-    ? `Continue · Level ${lv.level} · ${lv.levelScore.toLocaleString()} / ${lv.levelTarget.toLocaleString()}`
+    ? `Continue · Level ${lv.level}${lv.modifiers.length ? ` ${lv.modifiers.map((m) => MODIFIERS[m].icon).join('')}` : ''} · ${lv.levelScore.toLocaleString()} / ${lv.levelTarget.toLocaleString()}`
     : 'Hit the goal score to level up';
   $('homeEndlessSub').textContent = enGoing ? `Continue · ${en.score.toLocaleString()}` : 'Classic — play until you run out of room';
 
@@ -455,10 +540,7 @@ function play(gameMode) {
   if (game.over) newGame();
   hideHome();
   renderer.renderTray(game.tray, fitOf); // tray size depends on layout; re-measure once visible
-  if (game.mode === 'levels' && game.stats.moves === 0 && game.level === 1) {
-    const wrap = $('boardWrap').getBoundingClientRect();
-    setTimeout(() => fx.floatText(`Level 1 · Goal ${game.levelTarget}`, wrap.left + wrap.width / 2, wrap.top + wrap.height / 2, 'praise t1'), 350);
-  }
+  if (game.mode === 'levels' && game.levelScore === 0) setTimeout(levelIntro, 350);
   try {
     if (!localStorage.getItem(CONFIG.storagePrefix + 'seenHelp')) {
       localStorage.setItem(CONFIG.storagePrefix + 'seenHelp', '1');
