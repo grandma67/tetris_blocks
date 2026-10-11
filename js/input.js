@@ -11,6 +11,7 @@ export class DragController {
    * @param {() => void} o.onPick
    * @param {() => void} o.onCancel
    * @param {(pieceId:number) => void} o.onTap   quick tap on a tray piece (rotate)
+   * @param {() => boolean} [o.isBusy]          true while input should be ignored (level transition)
    * @param {(lines:object)=>object} o.previewLines
    */
   constructor(o) {
@@ -23,7 +24,7 @@ export class DragController {
   }
 
   start(e) {
-    if (this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (this.drag || this.isBusy?.() || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const game = this.getGame();
     if (game.over) return;
     // The whole slot is the grab area, so small pieces are easy to pick up.

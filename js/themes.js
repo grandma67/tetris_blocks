@@ -202,4 +202,5 @@ export function applyTheme(theme) {
   if (meta) meta.setAttribute('content', theme.palette[0]);
 }
 
-export const colorFor = (theme, colorIndex) => theme.palette[((colorIndex % theme.palette.length) + theme.palette.length) % theme.palette.length];
+export const colorFor = (theme, colorIndex) =>
+  colorIndex >= 100 ? theme.vars['--muted'] : theme.palette[((colorIndex % theme.palette.length) + theme.palette.length) % theme.palette.length];

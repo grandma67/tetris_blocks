@@ -14,9 +14,11 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const settings = Storage.getSettings();
 let theme = themeById(settings.theme);
-const gameOpts = () => ({ size: settings.boardSize, pieces: settings.pieces, twists: settings.twists });
-let game = Game.fromJSON(Storage.getSavedGame(), gameOpts()) || new Game(gameOpts());
-const mode = () => modeKey(game.size, game.piecesPerRound, game.twists);
+const gameOpts = (gameMode = settings.gameMode) => ({ mode: gameMode, size: settings.boardSize, pieces: settings.pieces, twists: settings.twists });
+const loadGame = (gameMode) => Game.fromJSON(Storage.getSavedGame(gameMode), gameOpts(gameMode)) || new Game(gameOpts(gameMode));
+let game = loadGame(settings.gameMode);
+const mode = () => modeKey(game.size, game.piecesPerRound, game.twists, game.mode);
+let busy = false; // true during the level-complete transition
 /** Tray hint: fits as-is, fits only if rotated, or not at all. */
 const fitOf = (p) => (game.fits(p) ? 'fits' : game.fitsRotated(p) ? 'rotate' : 'no');
 let bestAtStart = Storage.best(mode());
@@ -92,7 +94,22 @@ function renderAll() {
   updateBest();
   updateCombo();
   updateTokens();
+  updateLevelHud();
   document.querySelectorAll('[data-twist]').forEach((el) => (el.hidden = !game.twists[el.dataset.twist]));
+}
+
+function updateLevelHud(complete = false) {
+  const levels = game.mode === 'levels';
+  $('bestStat').hidden = levels;
+  $('levelStat').hidden = !levels;
+  $('levelBar').hidden = !levels;
+  if (!levels) return;
+  const target = game.levelTarget;
+  const done = complete ? target : Math.min(game.levelScore, target);
+  $('levelNum').textContent = complete ? game.level - 1 : game.level;
+  $('levelProgress').textContent = complete ? 'Clear!' : `${done.toLocaleString()} / ${target.toLocaleString()}`;
+  $('levelFill').style.width = `${complete ? 100 : (done / target) * 100}%`;
+  $('levelBar').classList.toggle('full', complete);
 }
 
 function updateTokens(bump = false) {
@@ -124,7 +141,7 @@ function onTap(pieceId) {
     Sound.rotate();
     updateTokens(true);
     if (game.over) {
-      Storage.clearSavedGame();
+      Storage.clearSavedGame(game.mode);
       setTimeout(handleGameOver, 400);
     } else {
       Storage.saveGame(game.toJSON());
@@ -222,8 +239,10 @@ function onDrop(pieceId, row, col) {
   const res = game.tryPlace(pieceId, row, col);
   if (!res.ok) return;
 
-  renderer.renderBoard(game.grid, game.bombs);
-  const survivors = res.placedCells.filter((i) => game.grid[i] !== null);
+  // On a level-up the model already moved on; show the finished board first.
+  const shownGrid = res.levelUp ? res.levelUp.grid : game.grid;
+  renderer.renderBoard(shownGrid, res.levelUp ? res.levelUp.bombs : game.bombs);
+  const survivors = res.placedCells.filter((i) => shownGrid[i] !== null);
   renderer.animatePlace(survivors);
   Sound.drop();
 
@@ -253,6 +272,15 @@ function onDrop(pieceId, row, col) {
 
   animateScore();
   updateCombo();
+  updateLevelHud(!!res.levelUp);
+
+  if (res.levelUp) {
+    busy = true;
+    $('tray').querySelectorAll('.piece').forEach((el) => el.classList.add('leaving'));
+    Storage.saveGame(game.toJSON());
+    setTimeout(() => levelComplete(res), res.lineCount ? 650 : 250);
+    return;
+  }
 
   if (res.newRound) {
     setTimeout(() => {
@@ -266,11 +294,51 @@ function onDrop(pieceId, row, col) {
   }
 
   if (res.gameOver) {
-    Storage.clearSavedGame();
+    Storage.clearSavedGame(game.mode);
     setTimeout(handleGameOver, res.lineCount ? 900 : 500);
   } else {
     Storage.saveGame(game.toJSON());
   }
+}
+
+/** Level clear celebration, then reveal the next level's board. */
+function levelComplete(res) {
+  const wrap = $('boardWrap').getBoundingClientRect();
+  const cx = wrap.left + wrap.width / 2;
+  const cy = wrap.top + wrap.height / 2;
+  fx.floatText(`LEVEL ${res.levelUp.level} CLEAR!`, cx, cy - 20, 'mega');
+  fx.fireworks(theme.palette, 5);
+  fx.confetti(theme.palette, 90);
+  Sound.boardClear();
+  if (res.levelUp.tokenBonus) {
+    const t = $('tokens').getBoundingClientRect();
+    setTimeout(() => {
+      fx.floatText('+1 ↻', t.left + t.width / 2, t.top, 'bonus token-text');
+      updateTokens(true);
+      Sound.token();
+    }, 600);
+  }
+  // Sweep the old blocks away.
+  const old = [];
+  res.levelUp.grid.forEach((color, index) => color !== null && old.push({ index, color }));
+  setTimeout(() => {
+    renderer.renderBoard(res.levelUp.grid.map(() => null));
+    renderer.animateClear(old, Math.floor((game.size * game.size) / 2), 2);
+  }, 500);
+  setTimeout(() => {
+    renderer.renderBoard(game.grid, game.bombs);
+    renderer.animatePlace(game.grid.map((v, i) => (v !== null ? i : -1)).filter((i) => i >= 0));
+    renderer.renderTray(game.tray, fitOf);
+    updateLevelHud();
+    updateCombo();
+    Sound.newRound();
+    fx.floatText(`Level ${game.level} · Goal ${game.levelTarget.toLocaleString()}`, cx, cy, 'praise t1');
+    busy = false;
+    if (game.over) {
+      Storage.clearSavedGame(game.mode);
+      setTimeout(handleGameOver, 600);
+    }
+  }, 1700);
 }
 
 function handleGameOver() {
@@ -280,7 +348,13 @@ function handleGameOver() {
   renderer.gameOverWave();
 
   const prevBest = Storage.best(mode());
-  const rank = Storage.addHighscore(mode(), { score: game.score, lines: game.stats.lines, bestCombo: game.stats.bestCombo });
+  const levels = game.mode === 'levels';
+  const rank = Storage.addHighscore(mode(), {
+    score: game.score,
+    lines: game.stats.lines,
+    bestCombo: game.stats.bestCombo,
+    ...(levels ? { level: game.level } : {}),
+  });
   const record = rank === 0 && game.score > prevBest;
 
   setTimeout(() => {
@@ -288,9 +362,10 @@ function handleGameOver() {
     $('goBadge').textContent = record ? '👑 NEW HIGH SCORE!' : rank > 0 ? `🏅 #${rank + 1} on the board` : '';
     $('goBadge').classList.toggle('show', rank >= 0);
     $('goStats').innerHTML = `
+      ${levels ? `<div><b>${game.level}</b><span>level</span></div>` : ''}
       <div><b>${game.stats.lines}</b><span>lines</span></div>
       <div><b>${game.stats.bestCombo}</b><span>best combo</span></div>
-      <div><b>${game.stats.moves}</b><span>moves</span></div>`;
+      ${levels ? '' : `<div><b>${game.stats.moves}</b><span>moves</span></div>`}`;
     openModal('gameOverModal');
     if (record) {
       fx.confetti(theme.palette, 160);
@@ -302,11 +377,12 @@ function handleGameOver() {
 
 function newGame() {
   closeAllModals();
-  Storage.clearSavedGame();
-  game = new Game(gameOpts());
+  Storage.clearSavedGame(game.mode);
+  game = new Game(gameOpts(game.mode));
   if (renderer.size !== game.size) renderer.setSize(game.size);
   bestAtStart = Storage.best(mode());
   gameOverHandled = false;
+  busy = false;
   renderer.clearGameOver();
   renderAll();
   Storage.saveGame(game.toJSON());
@@ -318,11 +394,48 @@ function newGame() {
 
 const inProgress = () => !game.over && game.stats.moves > 0;
 
+const savedFor = (gameMode) => (game.mode === gameMode ? game : Game.fromJSON(Storage.getSavedGame(gameMode), gameOpts(gameMode)));
+const modeKeyFor = (gameMode) => modeKey(settings.boardSize, settings.pieces, settings.twists, gameMode);
+
 function updateHome() {
-  $('homeBest').textContent = Storage.best(mode()).toLocaleString();
-  $('homeMode').textContent = `⚙️ ${modeLabel(game.size, game.piecesPerRound, game.twists)}`;
-  $('homePlay').textContent = inProgress() ? `▶ Continue · ${game.score.toLocaleString()}` : '▶ Play';
-  $('homeNew').hidden = !inProgress();
+  const lv = savedFor('levels');
+  const en = savedFor('endless');
+  const lvGoing = lv && !lv.over && (lv.stats.moves > 0 || lv.level > 1);
+  const enGoing = en && !en.over && en.stats.moves > 0;
+  $('homeLevelsSub').textContent = lvGoing
+    ? `Continue · Level ${lv.level} · ${lv.levelScore.toLocaleString()} / ${lv.levelTarget.toLocaleString()}`
+    : 'Hit the goal score to level up';
+  $('homeEndlessSub').textContent = enGoing ? `Continue · ${en.score.toLocaleString()}` : 'Classic — play until you run out of room';
+
+  const bestLv = Storage.getHighscores(modeKeyFor('levels'))[0];
+  const bestEn = Storage.best(modeKeyFor('endless'));
+  const bests = [
+    bestLv && `🎯 <b>Level ${bestLv.level ?? '?'}</b>`,
+    bestEn && `∞ <b>${bestEn.toLocaleString()}</b>`,
+  ].filter(Boolean);
+  $('homeBest').hidden = !bests.length;
+  $('homeBest').innerHTML = `<span>👑 Best</span> ${bests.join(' <span>·</span> ')}`;
+  $('homeMode').textContent = `⚙️ ${modeLabel(settings.boardSize, settings.pieces, settings.twists)}`;
+
+  // Restart applies to the mode played last.
+  const going = game.mode === 'levels' ? lvGoing : enGoing;
+  $('homeNew').hidden = !going;
+  $('homeNew').textContent = `🔄 Restart ${game.mode === 'levels' ? 'Levels' : 'Endless'}`;
+}
+
+/** Make `gameMode` the active game, keeping the other mode's progress saved. */
+function switchMode(gameMode) {
+  if (game.mode === gameMode) return;
+  if (!game.over) Storage.saveGame(game.toJSON());
+  settings.gameMode = gameMode;
+  Storage.setSettings(settings);
+  game = loadGame(gameMode);
+  if (renderer.size !== game.size) renderer.setSize(game.size);
+  bestAtStart = Storage.best(mode());
+  gameOverHandled = false;
+  busy = false;
+  renderer.clearGameOver();
+  renderAll();
 }
 
 function showHome() {
@@ -337,10 +450,15 @@ function hideHome() {
   $('home').inert = true;
 }
 
-function play() {
+function play(gameMode) {
+  switchMode(gameMode);
   if (game.over) newGame();
   hideHome();
   renderer.renderTray(game.tray, fitOf); // tray size depends on layout; re-measure once visible
+  if (game.mode === 'levels' && game.stats.moves === 0 && game.level === 1) {
+    const wrap = $('boardWrap').getBoundingClientRect();
+    setTimeout(() => fx.floatText(`Level 1 · Goal ${game.levelTarget}`, wrap.left + wrap.width / 2, wrap.top + wrap.height / 2, 'praise t1'), 350);
+  }
   try {
     if (!localStorage.getItem(CONFIG.storagePrefix + 'seenHelp')) {
       localStorage.setItem(CONFIG.storagePrefix + 'seenHelp', '1');
@@ -381,12 +499,12 @@ function closeAllModals() {
 
 function renderScores() {
   const list = Storage.getHighscores(mode());
-  $('scoresMode').textContent = modeLabel(game.size, game.piecesPerRound, game.twists);
+  $('scoresMode').textContent = `${game.mode === 'levels' ? '🎯 Levels' : '∞ Endless'} · ${modeLabel(game.size, game.piecesPerRound, game.twists)}`;
   $('scoresList').innerHTML = list.length
     ? list
         .map(
           (s, i) =>
-            `<li><span class="rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="pts">${s.score.toLocaleString()}</span><span class="meta">${s.lines ?? 0} lines · ${new Date(s.at).toLocaleDateString()}</span></li>`,
+            `<li><span class="rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="pts">${s.score.toLocaleString()}</span><span class="meta">${s.level ? `Level ${s.level} · ` : ''}${s.lines ?? 0} lines · ${new Date(s.at).toLocaleDateString()}</span></li>`,
         )
         .join('')
     : '<li class="empty">No scores yet — go play!</li>';
@@ -497,6 +615,7 @@ new DragController({
   },
   onCancel: () => Sound.invalid(),
   onTap,
+  isBusy: () => busy,
 });
 
 $('btnMenu').addEventListener('click', showHome);
@@ -533,7 +652,8 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   if (btn.hasAttribute('data-close')) return btn.closest('dialog').close();
   const action = btn.dataset.action;
-  if (action === 'play') play();
+  if (action === 'play-levels') play('levels');
+  else if (action === 'play-endless') play('endless');
   else if (action === 'home') showHome();
   else if (action === 'new') {
     if (inProgress()) openModal('confirmModal');

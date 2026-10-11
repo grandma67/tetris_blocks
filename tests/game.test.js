@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../js/game.js';
+import { Game, STONE } from '../js/game.js';
 import { makePiece, SHAPES } from '../js/pieces.js';
 import { CONFIG } from '../js/config.js';
 
@@ -271,4 +271,92 @@ test('save/load keeps bombs, rotations and twists', () => {
   assert.deepEqual([...h.bombs], [10]);
   assert.equal(h.rotations, 5);
   assert.equal(Game.fromJSON(json, { twists: { rotate: false, bombs: false } }), null);
+});
+
+// ---------------------------------------------------------------- Levels mode
+
+test('level targets keep growing', () => {
+  let prev = 0;
+  for (let n = 1; n <= 50; n++) {
+    const t = CONFIG.levels.target(n);
+    assert.ok(t > prev, `level ${n}`);
+    prev = t;
+  }
+  assert.equal(CONFIG.levels.target(1), 100);
+});
+
+test('level 1 starts empty; later levels seed stones without full lines', () => {
+  const g = new Game({ mode: 'levels', rng: seeded(51) });
+  assert.equal(g.level, 1);
+  assert.ok(g.grid.every((v) => v === null));
+  for (const level of [2, 5, 10, 40]) {
+    g.level = level;
+    g.setupLevel();
+    const stones = g.grid.filter((v) => v === STONE).length;
+    assert.equal(stones, CONFIG.levels.stones(level, N), `level ${level}`);
+    const { rows, cols } = (() => {
+      const full = { rows: [], cols: [] };
+      for (let i = 0; i < N; i++) {
+        if ([...Array(N)].every((_, j) => g.grid[i * N + j] !== null)) full.rows.push(i);
+        if ([...Array(N)].every((_, j) => g.grid[j * N + i] !== null)) full.cols.push(i);
+      }
+      return full;
+    })();
+    assert.equal(rows.length + cols.length, 0);
+  }
+});
+
+test('reaching the target advances to a fresh level', () => {
+  const g = new Game({ mode: 'levels', rng: seeded(52) });
+  g.score = 95; // 5 short of level 1's 100
+  for (let c = 0; c < N - 1; c++) g.grid[c] = 0;
+  g.grid[5 * N] = 1;
+  g.tray = [makePiece('M1:0'), makePiece('O:0'), null];
+  const tokens = g.rotations;
+  const res = g.tryPlace(g.tray[0].id, 0, N - 1);
+  assert.ok(res.levelUp);
+  assert.equal(res.levelUp.level, 1);
+  assert.equal(res.levelUp.grid[5 * N], 1, 'pre-reset board is reported for animation');
+  assert.equal(g.level, 2);
+  assert.equal(g.levelStart, g.score);
+  assert.equal(g.levelScore, 0);
+  assert.equal(g.rotations, tokens + 1);
+  assert.equal(g.tray.filter(Boolean).length, CONFIG.piecesPerRound, 'new tray for the new level');
+  assert.equal(g.grid.filter((v) => v !== null && v !== STONE).length, 0, 'old blocks are gone');
+  assert.equal(res.newRound, true);
+});
+
+test('not reaching the target keeps the level', () => {
+  const g = new Game({ mode: 'levels', rng: seeded(53) });
+  g.tray = [makePiece('O:0'), makePiece('M1:0'), null];
+  const res = g.tryPlace(g.tray[0].id, 0, 0);
+  assert.equal(res.levelUp, null);
+  assert.equal(g.level, 1);
+  assert.equal(g.levelScore, 4);
+});
+
+test('levels and endless saves do not mix; level survives save/load', () => {
+  const g = new Game({ mode: 'levels', rng: seeded(54) });
+  g.level = 7;
+  g.levelStart = 1234;
+  g.score = 1300;
+  const json = JSON.parse(JSON.stringify(g.toJSON()));
+  assert.equal(Game.fromJSON(json, { mode: 'endless' }), null);
+  const h = Game.fromJSON(json, { mode: 'levels' });
+  assert.equal(h.level, 7);
+  assert.equal(h.levelScore, 66);
+  assert.equal(Game.fromJSON(new Game({ rng: seeded(55) }).toJSON(), { mode: 'levels' }), null);
+});
+
+test('random play in levels mode advances and eventually ends', () => {
+  const rng = seeded(56);
+  let maxLevel = 0;
+  for (let run = 0; run < 15; run++) {
+    const g = new Game({ mode: 'levels', rng });
+    let guard = 0;
+    while (!g.over && guard++ < 5000) botMove(g, rng);
+    assert.ok(g.over);
+    maxLevel = Math.max(maxLevel, g.level);
+  }
+  assert.ok(maxLevel >= 2, `random bot should clear level 1 sometimes (max ${maxLevel})`);
 });

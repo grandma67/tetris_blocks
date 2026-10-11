@@ -1,6 +1,8 @@
 // DOM rendering for the board and the piece tray.
 export const PALETTE_SIZE = 8;
-export const colorVar = (colorIndex) => `var(--p${((colorIndex % PALETTE_SIZE) + PALETTE_SIZE) % PALETTE_SIZE})`;
+// Values >= 100 are non-piece blocks (level stones), drawn in the theme's grey.
+export const colorVar = (colorIndex) =>
+  colorIndex >= 100 ? 'var(--stone)' : `var(--p${((colorIndex % PALETTE_SIZE) + PALETTE_SIZE) % PALETTE_SIZE})`;
 
 export function buildPieceEl(piece, cell, gap, cls = 'piece') {
   const { shape } = piece;

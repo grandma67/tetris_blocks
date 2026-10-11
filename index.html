@@ -37,10 +37,15 @@
           <div class="stat-value" id="score">0</div>
         </div>
         <div class="combo" id="combo" aria-live="polite"></div>
-        <div class="stat best">
+        <div class="stat best" id="bestStat">
           <div class="stat-label">👑 Best</div>
           <div class="stat-value" id="best">0</div>
         </div>
+        <div class="stat best level-stat" id="levelStat" hidden>
+          <div class="stat-label">🎯 Level <b id="levelNum">1</b></div>
+          <div class="stat-value" id="levelProgress">0 / 100</div>
+        </div>
+        <div class="level-bar" id="levelBar" hidden><i id="levelFill"></i></div>
       </section>
 
       <main class="board-wrap" id="boardWrap">
@@ -66,12 +71,17 @@
         <h1 class="home-title">Block<span>Fit</span></h1>
         <p class="home-tagline">Fit the pieces. Clear the lines. Don't run out of room.</p>
 
-        <div class="home-best"><span>👑 Best</span> <b id="homeBest">0</b></div>
+        <div class="home-best" id="homeBest"></div>
         <button class="mode-chip" type="button" data-action="settings" id="homeMode"></button>
 
         <nav class="home-menu">
-          <button class="btn play" type="button" data-action="play" id="homePlay">▶ Play</button>
-          <button class="btn ghost" type="button" data-action="new" id="homeNew">🔄 New Game</button>
+          <button class="btn play mode-btn" type="button" data-action="play-levels" id="homeLevels">
+            <span>🎯 Levels</span><small id="homeLevelsSub">Hit the goal score to level up</small>
+          </button>
+          <button class="btn ghost mode-btn" type="button" data-action="play-endless" id="homeEndless">
+            <span>∞ Endless</span><small id="homeEndlessSub">Classic — play until you run out of room</small>
+          </button>
+          <button class="link-btn" type="button" data-action="new" id="homeNew">🔄 Restart</button>
           <div class="home-grid">
             <button class="btn ghost" type="button" data-action="themes">🎨 Themes</button>
             <button class="btn ghost" type="button" data-action="settings">⚙️ Settings</button>
@@ -135,6 +145,8 @@
       <h2>How to Play</h2>
       <ul class="help">
         <li>🧩 Drag the pieces from the tray onto the board.</li>
+        <li>🎯 <b>Levels:</b> reach the goal score to clear a level. Each new level starts fresh, with a few grey stones in the way.</li>
+        <li>∞ <b>Endless:</b> no goals — just play until you run out of room.</li>
         <li>➖ Fill a full <b>row</b> or <b>column</b> to clear it.</li>
         <li>🔁 Place all pieces to get a new set. Pieces can't be rotated.</li>
         <li>💥 Clear several lines at once for big points.</li>

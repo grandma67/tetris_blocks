@@ -22,9 +22,19 @@ npm test           # logic unit tests (node:test, no deps)
 
 (Alternatively choose *Deploy from a branch → main / root* — the site has no build step, so that works too.)
 
+## Modes
+
+- **🎯 Levels (default)** — each level has a goal score (100, 175, 280, 415, 580… growing forever).
+  Reach it and you move on to a fresh board with +1 rotate token; from level 2 the board starts with
+  grey stone blocks (more each level) and big pieces get more common. Run out of room before the goal
+  and the run ends — high scores record the level reached. Tuning: `CONFIG.levels`.
+- **∞ Endless** — the classic mode: play until no piece fits.
+
+Each mode keeps its own saved game and high-score tables.
+
 ## Home page
 
-The game opens on a menu page: Play / Continue (shows the current score), New Game, Themes,
+The game opens on a menu page: 🎯 Levels and ∞ Endless (each shows Continue + progress), Restart, Themes,
 Settings, High Scores and How to Play, plus your best score and the active mode. The ☰ button
 in-game returns to it; the current game is saved, so Continue picks up where you left off.
 

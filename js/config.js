@@ -7,6 +7,14 @@ export const CONFIG = {
   boardSizes: [6, 7, 8, 9, 10],
   piecesRange: [1, 6],
 
+  // Levels mode: reach a point target per level; each new level starts with
+  // a fresh board seeded with stone blocks.
+  levels: {
+    target: (n) => 100 + 60 * (n - 1) + 15 * (n - 1) ** 2,  // 100, 175, 280, 415, 580…
+    stones: (n, size) => Math.min(Math.floor((n - 1) * 1.5), Math.floor(size * size * 0.3)),
+    difficultyPerLevel: 350,    // levels ramp piece sizes like this many endless points
+  },
+
   // Optional twists, each toggled in Settings.
   defaultTwists: { rotate: true, bombs: true },
   rotate: {
