@@ -27,7 +27,10 @@ npm test           # logic unit tests (node:test, no deps)
 - **🎯 Levels (default)** — each level has a goal score (100, 175, 280, 415, 580… growing forever).
   Reach it and you move on to a fresh board with +1 rotate token; from level 2 the board starts with
   grey stone blocks (more each level) and big pieces get more common. Run out of room before the goal
-  and the run ends — high scores record the level reached. Tuning: `CONFIG.levels`.
+  and you **retry that same level** — score and rotate tokens go back to what you had when the level
+  began. Progress is kept in `localStorage` (a checkpoint saved at the start of every level) and
+  survives reloads and settings changes; only "Restart from Level 1" on the home page resets it.
+  The high-score table keeps one row per run, updated as the run gets further. Tuning: `CONFIG.levels`.
 
   **Seeded levels with twists.** The level number seeds that level's random generator, so level N
   always gets the same twist, stone layout and opening pieces — for every player. Level 1 plays

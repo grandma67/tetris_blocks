@@ -51,6 +51,15 @@ export const Storage = {
   saveGame: (data) => write(data.mode === 'levels' ? 'game.levels' : 'game', data),
   clearSavedGame: (gameMode = 'endless') => write(gameMode === 'levels' ? 'game.levels' : 'game', undefined),
 
+  // Levels progress: where a retry (or a fresh levels game) starts. Kept until
+  // the player explicitly restarts from level 1.
+  getLevelCheckpoint() {
+    const cp = read('levels.checkpoint', null);
+    return cp && Number.isInteger(cp.level) && cp.level >= 1 ? cp : null;
+  },
+  setLevelCheckpoint: (cp) => write('levels.checkpoint', cp),
+  clearLevelCheckpoint: () => write('levels.checkpoint', undefined),
+
   getHighscores(mode) {
     const list = read(scoresKey(mode), []);
     return Array.isArray(list) ? list : [];
@@ -59,8 +68,14 @@ export const Storage = {
   /** Inserts a result and returns its rank (0-based) or -1 if it didn't place. */
   addHighscore(mode, entry) {
     if (!entry.score) return -1;
-    const list = this.getHighscores(mode);
+    let list = this.getHighscores(mode);
     const record = { ...entry, at: Date.now() };
+    // One row per levels run: a retry replaces that run's row if it did better.
+    if (entry.runId) {
+      const prev = list.find((e) => e.runId === entry.runId);
+      if (prev && prev.score >= entry.score) return list.indexOf(prev);
+      list = list.filter((e) => e.runId !== entry.runId);
+    }
     list.push(record);
     list.sort((a, b) => b.score - a.score || a.at - b.at);
     const trimmed = list.slice(0, CONFIG.highscoreSlots);

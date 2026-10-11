@@ -53,6 +53,7 @@ export class Game {
     this.over = false;
     this.level = 1;
     this.levelStart = 0;
+    this.runId = Math.floor(Math.random() * 2 ** 31).toString(36);
     if (this.mode === 'levels') this.setupLevel();
     else this.dealRound();
   }
@@ -70,6 +71,22 @@ export class Game {
     return this.mode === 'levels' ? (this.level - 1) * CONFIG.levels.difficultyPerLevel : this.score;
   }
 
+  /** Checkpoint for retrying the current level after losing it. */
+  get checkpoint() {
+    return { level: this.level, score: this.levelStart, rotations: this.levelStartRotations, runId: this.runId };
+  }
+
+  /** Resume a levels run at a checkpoint (score and tokens as they were when the level began). */
+  startAtLevel({ level, score = 0, rotations, runId }) {
+    this.level = Math.max(1, level | 0);
+    this.score = score;
+    if (this.twists.rotate && Number.isInteger(rotations)) this.rotations = Math.min(CONFIG.rotate.max, rotations);
+    if (runId) this.runId = runId;
+    this.over = false;
+    this.crushed = false;
+    this.setupLevel();
+  }
+
   /** Fresh board for the current level, seeded with stones that never complete a line. */
   setupLevel() {
     const n = this.size;
@@ -78,6 +95,7 @@ export class Game {
     this.combo = 0;
     this.movesSinceClear = 0;
     this.levelStart = this.score;
+    this.levelStartRotations = this.rotations;
     this.levelRng = new SeededRng(levelSeed(this.level));
     this.modifiers = levelModifiers(this.level);
     this.levelRound = 0;
@@ -377,6 +395,8 @@ export class Game {
       level: this.level,
       levelStart: this.levelStart,
       levelRound: this.levelRound,
+      levelStartRotations: this.levelStartRotations,
+      runId: this.runId,
       rngState: this.levelRng ? this.levelRng.state : null,
       crushed: this.crushed,
       size: this.size,
@@ -423,6 +443,8 @@ export class Game {
         g.levelRng.state = data.rngState ?? levelSeed(g.level);
       }
       g.crushed = !!data.crushed;
+      g.levelStartRotations = data.levelStartRotations ?? g.rotations;
+      if (data.runId) g.runId = data.runId;
       g.stats = { ...g.stats, ...data.stats };
       g.over = data.over;
       if (g.grid.length !== g.size * g.size) return null;

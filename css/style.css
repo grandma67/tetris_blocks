@@ -1034,6 +1034,10 @@ button {
   background-clip: text;
   color: transparent;
 }
+.gameover .row .btn {
+  white-space: nowrap;
+  padding-inline: 14px;
+}
 .go-badge {
   display: none;
   margin: -6px auto 10px;

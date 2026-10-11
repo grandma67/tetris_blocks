@@ -156,7 +156,7 @@
         <li>✨ Empty the whole board for a huge bonus.</li>
         <li data-twist="rotate">↻ <b>Tap</b> a piece to rotate it — each turn costs a token. Clear 3+ lines at once to earn more.</li>
         <li data-twist="bombs">💣 When a bomb's row or column clears, it blows up everything around it — and other bombs too!</li>
-        <li>☠️ If none of your pieces fits anywhere — game over!</li>
+        <li>☠️ If none of your pieces fits anywhere, the game ends. In Levels you just retry the same level — your progress is saved.</li>
       </ul>
       <button class="btn" data-close>Got it</button>
     </dialog>
@@ -175,7 +175,7 @@
     <!-- Confirm new game -->
     <dialog class="modal" id="confirmModal">
       <h2>Start over?</h2>
-      <p class="muted">Your current game will be lost.</p>
+      <p class="muted" id="confirmText">Your current game will be lost.</p>
       <div class="row">
         <button class="btn ghost" data-close>Cancel</button>
         <button class="btn" id="btnConfirmNew">New Game</button>
@@ -185,11 +185,11 @@
     <!-- Game over -->
     <dialog class="modal gameover" id="gameOverModal">
       <div class="go-badge" id="goBadge">NEW HIGH SCORE!</div>
-      <h2>No more room!</h2>
+      <h2 id="goTitle">No more room!</h2>
       <div class="go-score" id="goScore">0</div>
       <div class="go-stats" id="goStats"></div>
       <div class="row">
-        <button class="btn ghost" data-action="home">🏠 Menu</button>
+        <button class="btn ghost" data-action="home" aria-label="Menu">🏠</button>
         <button class="btn ghost" data-action="scores">🏆</button>
         <button class="btn" id="btnPlayAgain">Play Again</button>
       </div>

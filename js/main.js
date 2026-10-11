@@ -16,7 +16,14 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const settings = Storage.getSettings();
 let theme = themeById(settings.theme);
 const gameOpts = (gameMode = settings.gameMode) => ({ mode: gameMode, size: settings.boardSize, pieces: settings.pieces, twists: settings.twists });
-const loadGame = (gameMode) => Game.fromJSON(Storage.getSavedGame(gameMode), gameOpts(gameMode)) || new Game(gameOpts(gameMode));
+/** New game for a mode; levels pick up at the saved checkpoint instead of level 1. */
+function freshGame(gameMode) {
+  const g = new Game(gameOpts(gameMode));
+  const cp = gameMode === 'levels' && Storage.getLevelCheckpoint();
+  if (cp) g.startAtLevel(cp);
+  return g;
+}
+const loadGame = (gameMode) => Game.fromJSON(Storage.getSavedGame(gameMode), gameOpts(gameMode)) || freshGame(gameMode);
 let game = loadGame(settings.gameMode);
 const mode = () => modeKey(game.size, game.piecesPerRound, game.twists, game.mode);
 let busy = false; // true during the level-complete transition
@@ -302,6 +309,7 @@ function onDrop(pieceId, row, col) {
   updateCombo();
   updateLevelHud(!!res.levelUp);
   Storage.saveGame(game.toJSON());
+  if (res.levelUp) Storage.setLevelCheckpoint(game.checkpoint);
 
   // Remove the used piece from the tray right away.
   $('tray').querySelector(`[data-piece-id="${pieceId}"]`)?.remove();
@@ -438,12 +446,14 @@ function handleGameOver() {
     score: game.score,
     lines: game.stats.lines,
     bestCombo: game.stats.bestCombo,
-    ...(levels ? { level: game.level } : {}),
+    ...(levels ? { level: game.level, runId: game.runId } : {}),
   });
   const record = rank === 0 && game.score > prevBest;
 
   setTimeout(() => {
     $('goScore').textContent = game.score.toLocaleString();
+    $('goTitle').textContent = levels ? `Level ${game.level} failed` : 'No more room!';
+    $('btnPlayAgain').textContent = levels ? `↻ Retry Level ${game.level}` : 'Play Again';
     $('goBadge').textContent = record ? '👑 NEW HIGH SCORE!' : rank > 0 ? `🏅 #${rank + 1} on the board` : '';
     $('goBadge').classList.toggle('show', rank >= 0);
     $('goStats').innerHTML = `
@@ -463,7 +473,8 @@ function handleGameOver() {
 function newGame() {
   closeAllModals();
   Storage.clearSavedGame(game.mode);
-  game = new Game(gameOpts(game.mode));
+  game = freshGame(game.mode);
+  if (game.mode === 'levels') Storage.setLevelCheckpoint(game.checkpoint);
   if (renderer.size !== game.size) renderer.setSize(game.size);
   bestAtStart = Storage.best(mode());
   gameOverHandled = false;
@@ -487,7 +498,10 @@ function updateHome() {
   const en = savedFor('endless');
   const lvGoing = lv && !lv.over && (lv.stats.moves > 0 || lv.level > 1);
   const enGoing = en && !en.over && en.stats.moves > 0;
-  $('homeLevelsSub').textContent = lvGoing
+  const cp = Storage.getLevelCheckpoint();
+  $('homeLevelsSub').textContent = !lvGoing && cp && cp.level > 1
+    ? `Continue from Level ${cp.level}`
+    : lvGoing
     ? `Continue · Level ${lv.level}${lv.modifiers.length ? ` ${lv.modifiers.map((m) => MODIFIERS[m].icon).join('')}` : ''} · ${lv.levelScore.toLocaleString()} / ${lv.levelTarget.toLocaleString()}`
     : 'Hit the goal score to level up';
   $('homeEndlessSub').textContent = enGoing ? `Continue · ${en.score.toLocaleString()}` : 'Classic — play until you run out of room';
@@ -503,9 +517,9 @@ function updateHome() {
   $('homeMode').textContent = `⚙️ ${modeLabel(settings.boardSize, settings.pieces, settings.twists)}`;
 
   // Restart applies to the mode played last.
-  const going = game.mode === 'levels' ? lvGoing : enGoing;
+  const going = game.mode === 'levels' ? lvGoing || (cp && cp.level > 1) : enGoing;
   $('homeNew').hidden = !going;
-  $('homeNew').textContent = `🔄 Restart ${game.mode === 'levels' ? 'Levels' : 'Endless'}`;
+  $('homeNew').textContent = game.mode === 'levels' ? '🔄 Restart from Level 1' : '🔄 Restart Endless';
 }
 
 /** Make `gameMode` the active game, keeping the other mode's progress saved. */
@@ -712,6 +726,7 @@ $('btnSound').addEventListener('click', () => {
 });
 $('btnPlayAgain').addEventListener('click', newGame);
 $('btnConfirmNew').addEventListener('click', () => {
+  if (game.mode === 'levels') Storage.clearLevelCheckpoint();
   newGame();
   hideHome();
 });
@@ -741,8 +756,13 @@ document.addEventListener('click', (e) => {
   else if (action === 'play-endless') play('endless');
   else if (action === 'home') showHome();
   else if (action === 'new') {
-    if (inProgress()) openModal('confirmModal');
-    else {
+    const levelsProgress = game.mode === 'levels' && (game.level > 1 || inProgress());
+    if (levelsProgress || inProgress()) {
+      $('confirmText').textContent = game.mode === 'levels'
+        ? `You're on Level ${game.level}. Starting over resets your level progress to Level 1.`
+        : 'Your current game will be lost.';
+      openModal('confirmModal');
+    } else {
       newGame();
       hideHome();
     }
@@ -784,6 +804,9 @@ function showDarkTipOnce() {
     return false;
   }
 }
+
+// Saves from before checkpoints existed: remember where that levels run is.
+if (game.mode === 'levels' && !Storage.getLevelCheckpoint()) Storage.setLevelCheckpoint(game.checkpoint);
 
 // The game always opens on the home page.
 if (game.over) newGame();

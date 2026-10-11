@@ -360,3 +360,25 @@ test('random play in levels mode advances and eventually ends', () => {
   }
   assert.ok(maxLevel >= 2, `random bot should clear level 1 sometimes (max ${maxLevel})`);
 });
+
+test('a levels run can resume at a checkpoint', () => {
+  const g = new Game({ mode: 'levels', rng: seeded(60) });
+  g.level = 6;
+  g.score = 2000;
+  g.rotations = 5;
+  g.setupLevel();
+  const cp = g.checkpoint;
+  assert.deepEqual(cp, { level: 6, score: 2000, rotations: 5, runId: g.runId });
+
+  const retry = new Game({ mode: 'levels', rng: seeded(61) });
+  retry.startAtLevel(cp);
+  assert.equal(retry.level, 6);
+  assert.equal(retry.score, 2000);
+  assert.equal(retry.levelScore, 0);
+  assert.equal(retry.rotations, 5);
+  assert.equal(retry.runId, g.runId);
+  assert.equal(retry.over, false);
+  // Same level → same seeded start.
+  assert.deepEqual(retry.grid, g.grid);
+  assert.deepEqual(retry.tray.map((p) => p.key), g.tray.map((p) => p.key));
+});
