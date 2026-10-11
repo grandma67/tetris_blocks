@@ -816,3 +816,8 @@ if (game.over) newGame();
 buildHomeDeco();
 showHome();
 showDarkTipOnce();
+
+// Installable app (PWA): the service worker caches the game so it also runs offline.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
