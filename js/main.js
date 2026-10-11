@@ -326,7 +326,10 @@ function buildThemeGrid() {
         .map((c) => `<i class="swatch" style="--c:${c}"></i>`)
         .join('')}</div>
       <div class="theme-name">${t.icon} ${t.name}</div>`;
-    card.addEventListener('click', () => setTheme(t));
+    card.addEventListener('click', () => {
+      settings.themeChosen = true;
+      setTheme(t);
+    });
     $('themeGrid').appendChild(card);
   }
 }

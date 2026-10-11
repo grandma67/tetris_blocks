@@ -22,6 +22,8 @@ function write(k, value) {
   }
 }
 
+export const DEFAULT_THEME = 'candy';
+
 const clamp = (v, lo, hi, d) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : d);
 
 /** Score tables are kept per mode, since board size and piece count change what a score means. */
@@ -31,7 +33,8 @@ const scoresKey = (mode) => (mode === modeKey(CONFIG.boardSize, CONFIG.piecesPer
 
 export const Storage = {
   getSettings() {
-    const s = { theme: 'neon', sound: true, ...read('settings', {}) };
+    const s = { theme: DEFAULT_THEME, sound: true, ...read('settings', {}) };
+    if (!s.themeChosen) s.theme = DEFAULT_THEME;
     const sizes = CONFIG.boardSizes;
     s.boardSize = sizes.includes(s.boardSize) ? s.boardSize : CONFIG.boardSize;
     s.pieces = clamp(s.pieces, ...CONFIG.piecesRange, CONFIG.piecesPerRound);
