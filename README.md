@@ -22,6 +22,12 @@ npm test           # logic unit tests (node:test, no deps)
 
 (Alternatively choose *Deploy from a branch → main / root* — the site has no build step, so that works too.)
 
+## Home page
+
+The game opens on a menu page: Play / Continue (shows the current score), New Game, Themes,
+Settings, High Scores and How to Play, plus your best score and the active mode. The ☰ button
+in-game returns to it; the current game is saved, so Continue picks up where you left off.
+
 ## Rules & scoring
 
 | Event | Points |

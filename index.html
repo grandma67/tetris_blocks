@@ -23,7 +23,7 @@
 
     <div id="app">
       <header class="topbar">
-        <button class="icon-btn" id="btnMenu" aria-label="Menu">☰</button>
+        <button class="icon-btn" id="btnMenu" aria-label="Main menu">☰</button>
         <h1 class="logo">Block<span>Fit</span></h1>
         <div class="top-actions">
           <button class="icon-btn" id="btnTheme" aria-label="Change theme">🎨</button>
@@ -54,21 +54,36 @@
       </div>
     </div>
 
+    <!-- Home / main menu page -->
+    <section class="home show" id="home" aria-label="Main menu">
+      <div class="home-deco" id="homeDeco" aria-hidden="true"></div>
+      <div class="home-inner">
+        <div class="home-logo" aria-hidden="true">
+          <i class="block" style="--c: var(--p0); --d: 0"></i><i class="block" style="--c: var(--p0); --d: 1"></i><i class="block" style="--c: var(--p0); --d: 2"></i><i></i>
+          <i></i><i class="block" style="--c: var(--p0); --d: 3"></i><i class="block" style="--c: var(--p1); --d: 4"></i><i class="block" style="--c: var(--p1); --d: 5"></i>
+          <i class="block" style="--c: var(--p2); --d: 6"></i><i class="block" style="--c: var(--p2); --d: 7"></i><i></i><i class="block" style="--c: var(--p1); --d: 8"></i>
+        </div>
+        <h1 class="home-title">Block<span>Fit</span></h1>
+        <p class="home-tagline">Fit the pieces. Clear the lines. Don't run out of room.</p>
+
+        <div class="home-best"><span>👑 Best</span> <b id="homeBest">0</b></div>
+        <button class="mode-chip" type="button" data-action="settings" id="homeMode"></button>
+
+        <nav class="home-menu">
+          <button class="btn play" type="button" data-action="play" id="homePlay">▶ Play</button>
+          <button class="btn ghost" type="button" data-action="new" id="homeNew">🔄 New Game</button>
+          <div class="home-grid">
+            <button class="btn ghost" type="button" data-action="themes">🎨 Themes</button>
+            <button class="btn ghost" type="button" data-action="settings">⚙️ Settings</button>
+            <button class="btn ghost" type="button" data-action="scores">🏆 Scores</button>
+            <button class="btn ghost" type="button" data-action="help">❓ How to Play</button>
+          </div>
+        </nav>
+      </div>
+    </section>
+
     <canvas id="fx" aria-hidden="true"></canvas>
     <div id="textLayer" aria-hidden="true"></div>
-
-    <!-- Menu -->
-    <dialog class="modal" id="menuModal">
-      <h2>Menu</h2>
-      <div class="menu-list">
-        <button class="btn" data-action="new">🔄 New Game</button>
-        <button class="btn" data-action="scores">🏆 High Scores</button>
-        <button class="btn" data-action="themes">🎨 Themes</button>
-        <button class="btn" data-action="settings">⚙️ Settings</button>
-        <button class="btn" data-action="help">❓ How to Play</button>
-      </div>
-      <button class="btn ghost" data-close>Close</button>
-    </dialog>
 
     <!-- Themes -->
     <dialog class="modal wide" id="themeModal">
@@ -160,7 +175,8 @@
       <div class="go-score" id="goScore">0</div>
       <div class="go-stats" id="goStats"></div>
       <div class="row">
-        <button class="btn ghost" data-action="scores">🏆 Scores</button>
+        <button class="btn ghost" data-action="home">🏠 Menu</button>
+        <button class="btn ghost" data-action="scores">🏆</button>
         <button class="btn" id="btnPlayAgain">Play Again</button>
       </div>
     </dialog>

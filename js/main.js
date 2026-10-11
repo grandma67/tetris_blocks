@@ -1,12 +1,13 @@
 // App controller: wires the pure game model to rendering, input, sound & fx.
 import { CONFIG } from './config.js';
 import { Game } from './game.js';
-import { Renderer } from './renderer.js';
+import { Renderer, buildPieceEl } from './renderer.js';
 import { DragController } from './input.js';
 import { FX } from './fx.js';
 import { Sound } from './audio.js';
 import { Storage, modeKey } from './storage.js';
 import { THEMES, themeById, applyTheme, colorFor } from './themes.js';
+import { SHAPES, makePiece } from './pieces.js';
 
 const $ = (id) => document.getElementById(id);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -309,7 +310,60 @@ function newGame() {
   renderer.clearGameOver();
   renderAll();
   Storage.saveGame(game.toJSON());
+  updateHome();
   if (game.over) setTimeout(handleGameOver, 500);
+}
+
+// ---------------------------------------------------------------- Home page
+
+const inProgress = () => !game.over && game.stats.moves > 0;
+
+function updateHome() {
+  $('homeBest').textContent = Storage.best(mode()).toLocaleString();
+  $('homeMode').textContent = `⚙️ ${modeLabel(game.size, game.piecesPerRound, game.twists)}`;
+  $('homePlay').textContent = inProgress() ? `▶ Continue · ${game.score.toLocaleString()}` : '▶ Play';
+  $('homeNew').hidden = !inProgress();
+}
+
+function showHome() {
+  closeAllModals();
+  updateHome();
+  $('home').classList.add('show');
+  $('home').inert = false;
+}
+
+function hideHome() {
+  $('home').classList.remove('show');
+  $('home').inert = true;
+}
+
+function play() {
+  if (game.over) newGame();
+  hideHome();
+  renderer.renderTray(game.tray, fitOf); // tray size depends on layout; re-measure once visible
+  try {
+    if (!localStorage.getItem(CONFIG.storagePrefix + 'seenHelp')) {
+      localStorage.setItem(CONFIG.storagePrefix + 'seenHelp', '1');
+      openModal('helpModal');
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Slowly drifting pieces behind the menu, drawn with the theme's block style. */
+function buildHomeDeco() {
+  const deco = $('homeDeco');
+  deco.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const el = buildPieceEl(makePiece(shape.key, -1 - i), 16 + Math.round(Math.random() * 14), 3, 'piece deco');
+    el.style.left = `${(i / 9) * 100 + Math.random() * 6}%`;
+    el.style.animationDuration = `${16 + Math.random() * 12}s`;
+    el.style.animationDelay = `${-Math.random() * 25}s`;
+    el.style.setProperty('--spin', `${(Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 120)}deg`);
+    deco.appendChild(el);
+  }
 }
 
 // ---------------------------------------------------------------- Modals
@@ -445,7 +499,7 @@ new DragController({
   onTap,
 });
 
-$('btnMenu').addEventListener('click', () => openModal('menuModal'));
+$('btnMenu').addEventListener('click', showHome);
 $('btnTheme').addEventListener('click', () => openModal('themeModal'));
 $('btnSound').addEventListener('click', () => {
   setSound(!settings.sound);
@@ -453,7 +507,10 @@ $('btnSound').addEventListener('click', () => {
   Sound.pick();
 });
 $('btnPlayAgain').addEventListener('click', newGame);
-$('btnConfirmNew').addEventListener('click', newGame);
+$('btnConfirmNew').addEventListener('click', () => {
+  newGame();
+  hideHome();
+});
 $('btnApplySettings').addEventListener('click', applySettings);
 $('tokens').addEventListener('click', () => hint(game.rotations ? 'Tap a piece to rotate it' : 'Clear 3+ lines at once to earn a rotation'));
 $('optRotate').addEventListener('change', (e) => {
@@ -476,9 +533,14 @@ document.addEventListener('click', (e) => {
   if (!btn) return;
   if (btn.hasAttribute('data-close')) return btn.closest('dialog').close();
   const action = btn.dataset.action;
-  if (action === 'new') {
-    if (game.over || game.stats.moves === 0) newGame();
-    else openModal('confirmModal');
+  if (action === 'play') play();
+  else if (action === 'home') showHome();
+  else if (action === 'new') {
+    if (inProgress()) openModal('confirmModal');
+    else {
+      newGame();
+      hideHome();
+    }
   } else if (action === 'scores') openModal('scoresModal');
   else if (action === 'themes') openModal('themeModal');
   else if (action === 'settings') openSettings();
@@ -518,15 +580,8 @@ function showDarkTipOnce() {
   }
 }
 
-if (game.over) handleGameOver();
-else if (!showDarkTipOnce() && !Storage.getSavedGame()) {
-  Storage.saveGame(game.toJSON());
-  try {
-    if (!localStorage.getItem(CONFIG.storagePrefix + 'seenHelp')) {
-      localStorage.setItem(CONFIG.storagePrefix + 'seenHelp', '1');
-      openModal('helpModal');
-    }
-  } catch {
-    /* storage unavailable */
-  }
-}
+// The game always opens on the home page.
+if (game.over) newGame();
+buildHomeDeco();
+showHome();
+showDarkTipOnce();
