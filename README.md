@@ -20,6 +20,8 @@ npm test           # logic unit tests (node:test, no deps)
 2. In the repo: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 3. The workflow in `.github/workflows/pages.yml` runs the tests and publishes the site on every push.
 
+(Alternatively choose *Deploy from a branch → main / root* — the site has no build step, so that works too.)
+
 ## Install as an app
 
 Block Fit is a PWA (`manifest.webmanifest` + `sw.js`). On Android Chrome open the site and tap
@@ -27,8 +29,6 @@ Block Fit is a PWA (`manifest.webmanifest` + `sw.js`). On Android Chrome open th
 launches full-screen with its own icon and works offline. The service worker is network-first, so a new
 deploy shows up on the next launch; if you add a JS/CSS file, add it to `CORE` in `sw.js`.
 Installing needs HTTPS (GitHub Pages is fine) or `localhost`.
-
-(Alternatively choose *Deploy from a branch → main / root* — the site has no build step, so that works too.)
 
 ## Modes
 
