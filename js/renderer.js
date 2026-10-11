@@ -25,18 +25,34 @@ export class Renderer {
     this.boardEl = boardEl;
     this.boardFxEl = boardFxEl;
     this.trayEl = trayEl;
+    this.previewed = [];
+    this.lineHinted = [];
+    this.setSize(size);
+  }
+
+  setSize(size) {
     this.size = size;
     this.cells = [];
     this.previewed = [];
     this.lineHinted = [];
-
-    boardEl.style.setProperty('--size', size);
+    this.boardEl.innerHTML = '';
+    this.boardFxEl.innerHTML = '';
+    this.boardEl.style.setProperty('--size', size);
     for (let i = 0; i < size * size; i++) {
       const c = document.createElement('div');
       c.className = 'cell';
-      boardEl.appendChild(c);
+      this.boardEl.appendChild(c);
       this.cells.push(c);
     }
+  }
+
+  /** Tray grid: up to 3 slots per row, so 4–6 pieces use two rows. */
+  setTraySlots(count) {
+    const cols = Math.min(count, 3);
+    const rows = Math.ceil(count / 3);
+    this.trayEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    this.trayEl.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    document.documentElement.style.setProperty('--tray-rows', rows);
   }
 
   renderBoard(grid) {
@@ -66,14 +82,19 @@ export class Renderer {
 
   renderTray(tray, fitsFn) {
     this.trayEl.innerHTML = '';
-    const slotW = this.trayEl.clientWidth / tray.length;
-    const mini = Math.max(10, Math.min(26, Math.floor((slotW - 16) / 5)));
+    this.setTraySlots(tray.length);
+    const cols = Math.min(tray.length, 3);
+    const rows = Math.ceil(tray.length / 3);
+    const slotW = this.trayEl.clientWidth / cols;
+    const slotH = this.trayEl.clientHeight / rows;
+    // Pieces are at most 5 blocks long; leave room for the grab padding.
+    const mini = Math.max(8, Math.min(26, Math.floor((slotW - 22) / 5), Math.floor((slotH - 22) / 5)));
     tray.forEach((piece, i) => {
       const slot = document.createElement('div');
       slot.className = 'slot';
       slot.dataset.slot = i;
       if (piece) {
-        const el = buildPieceEl(piece, mini, 2, 'piece mini');
+        const el = buildPieceEl(piece, mini, Math.max(1, Math.round(mini / 10)), 'piece mini');
         el.dataset.pieceId = piece.id;
         el.style.animationDelay = `${i * 70}ms`;
         if (!fitsFn(piece)) el.classList.add('unfit');

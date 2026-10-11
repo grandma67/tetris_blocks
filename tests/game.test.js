@@ -109,3 +109,43 @@ test('simulated games always terminate and keep score consistent', () => {
     assert.ok(g.score >= g.stats.moves);
   }
 });
+
+test('board size and pieces per round are configurable', () => {
+  for (const size of CONFIG.boardSizes) {
+    for (let pieces = CONFIG.piecesRange[0]; pieces <= CONFIG.piecesRange[1]; pieces++) {
+      const g = new Game({ size, pieces, rng: seeded(size * 10 + pieces) });
+      assert.equal(g.grid.length, size * size);
+      assert.equal(g.tray.length, pieces);
+    }
+  }
+});
+
+test('every shape fits on the smallest board', () => {
+  const size = Math.min(...CONFIG.boardSizes);
+  assert.ok(SHAPES.every((s) => s.w <= size && s.h <= size));
+});
+
+test('saved game only resumes with matching settings', () => {
+  const g = new Game({ size: 10, pieces: 5, rng: seeded(21) });
+  const json = JSON.parse(JSON.stringify(g.toJSON()));
+  assert.ok(Game.fromJSON(json, { size: 10, pieces: 5 }));
+  assert.equal(Game.fromJSON(json, { size: 8, pieces: 5 }), null);
+  assert.equal(Game.fromJSON(json, { size: 10, pieces: 3 }), null);
+  assert.equal(Game.fromJSON(json, { size: 10, pieces: 5 }).piecesPerRound, 5);
+});
+
+test('random play terminates on every mode', () => {
+  const rng = seeded(99);
+  for (const size of [6, 10]) for (const pieces of [1, 6]) {
+    const g = new Game({ size, pieces, rng });
+    let guard = 0;
+    while (!g.over && guard++ < 20000) {
+      const p = g.tray.find((x) => x && g.fits(x));
+      const spots = [];
+      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) if (g.canPlace(p, r, c)) spots.push([r, c]);
+      const [r, c] = spots[Math.floor(rng() * spots.length)];
+      assert.ok(g.tryPlace(p.id, r, c).ok);
+    }
+    assert.ok(g.over, `${size}x${size}/${pieces} should end`);
+  }
+});

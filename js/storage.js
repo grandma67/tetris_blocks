@@ -22,35 +22,48 @@ function write(k, value) {
   }
 }
 
+const clamp = (v, lo, hi, d) => (Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : d);
+
+/** Score tables are kept per mode, since board size and piece count change what a score means. */
+export const modeKey = (size, pieces) => `${size}x${pieces}`;
+// The default mode keeps the original key so existing high scores survive.
+const scoresKey = (mode) => (mode === modeKey(CONFIG.boardSize, CONFIG.piecesPerRound) ? 'highscores' : `highscores.${mode}`);
+
 export const Storage = {
-  getSettings: () => ({ theme: 'neon', sound: true, ...read('settings', {}) }),
+  getSettings() {
+    const s = { theme: 'neon', sound: true, ...read('settings', {}) };
+    const sizes = CONFIG.boardSizes;
+    s.boardSize = sizes.includes(s.boardSize) ? s.boardSize : CONFIG.boardSize;
+    s.pieces = clamp(s.pieces, ...CONFIG.piecesRange, CONFIG.piecesPerRound);
+    return s;
+  },
   setSettings: (s) => write('settings', s),
 
   getSavedGame: () => read('game', null),
   saveGame: (data) => write('game', data),
   clearSavedGame: () => write('game', undefined),
 
-  getHighscores: () => {
-    const list = read('highscores', []);
+  getHighscores(mode) {
+    const list = read(scoresKey(mode), []);
     return Array.isArray(list) ? list : [];
   },
 
   /** Inserts a result and returns its rank (0-based) or -1 if it didn't place. */
-  addHighscore(entry) {
+  addHighscore(mode, entry) {
     if (!entry.score) return -1;
-    const list = this.getHighscores();
+    const list = this.getHighscores(mode);
     const record = { ...entry, at: Date.now() };
     list.push(record);
     list.sort((a, b) => b.score - a.score || a.at - b.at);
     const trimmed = list.slice(0, CONFIG.highscoreSlots);
-    write('highscores', trimmed);
+    write(scoresKey(mode), trimmed);
     return trimmed.indexOf(record);
   },
 
-  best() {
-    const list = this.getHighscores();
+  best(mode) {
+    const list = this.getHighscores(mode);
     return list.length ? list[0].score : 0;
   },
 
-  clearHighscores: () => write('highscores', []),
+  clearHighscores: (mode) => write(scoresKey(mode), []),
 };

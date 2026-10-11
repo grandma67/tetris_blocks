@@ -1,8 +1,11 @@
 // Central tuning knobs. Everything gameplay-related lives here so balancing
 // never requires touching logic code.
 export const CONFIG = {
+  // Defaults; players can change both in Settings.
   boardSize: 8,
   piecesPerRound: 3,
+  boardSizes: [6, 7, 8, 9, 10],
+  piecesRange: [1, 6],
 
   scoring: {
     perCell: 1,                 // points per block placed

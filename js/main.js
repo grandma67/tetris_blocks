@@ -6,7 +6,7 @@ import { Renderer } from './renderer.js';
 import { DragController } from './input.js';
 import { FX } from './fx.js';
 import { Sound } from './audio.js';
-import { Storage } from './storage.js';
+import { Storage, modeKey } from './storage.js';
 import { THEMES, themeById, applyTheme, colorFor } from './themes.js';
 
 const $ = (id) => document.getElementById(id);
@@ -14,12 +14,14 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const settings = Storage.getSettings();
 let theme = themeById(settings.theme);
-let game = Game.fromJSON(Storage.getSavedGame()) || new Game();
-let bestAtStart = Storage.best();
+const gameOpts = () => ({ size: settings.boardSize, pieces: settings.pieces });
+let game = Game.fromJSON(Storage.getSavedGame(), gameOpts()) || new Game(gameOpts());
+const mode = () => modeKey(game.size, game.piecesPerRound);
+let bestAtStart = Storage.best(mode());
 let shownScore = game.score;
 let gameOverHandled = false;
 
-const renderer = new Renderer({ boardEl: $('board'), boardFxEl: $('boardFx'), trayEl: $('tray'), size: CONFIG.boardSize });
+const renderer = new Renderer({ boardEl: $('board'), boardFxEl: $('boardFx'), trayEl: $('tray'), size: game.size });
 const fx = new FX({ fxCanvas: $('fx'), ambientCanvas: $('ambient'), shakeTarget: $('app'), textLayer: $('textLayer') });
 
 // ---------------------------------------------------------------- Theme & sound
@@ -192,8 +194,8 @@ function handleGameOver() {
   Sound.gameOver();
   renderer.gameOverWave();
 
-  const prevBest = Storage.best();
-  const rank = Storage.addHighscore({ score: game.score, lines: game.stats.lines, bestCombo: game.stats.bestCombo });
+  const prevBest = Storage.best(mode());
+  const rank = Storage.addHighscore(mode(), { score: game.score, lines: game.stats.lines, bestCombo: game.stats.bestCombo });
   const record = rank === 0 && game.score > prevBest;
 
   setTimeout(() => {
@@ -216,8 +218,9 @@ function handleGameOver() {
 function newGame() {
   closeAllModals();
   Storage.clearSavedGame();
-  game = new Game();
-  bestAtStart = Storage.best();
+  game = new Game(gameOpts());
+  if (renderer.size !== game.size) renderer.setSize(game.size);
+  bestAtStart = Storage.best(mode());
   gameOverHandled = false;
   renderer.clearGameOver();
   renderAll();
@@ -239,7 +242,8 @@ function closeAllModals() {
 }
 
 function renderScores() {
-  const list = Storage.getHighscores();
+  const list = Storage.getHighscores(mode());
+  $('scoresMode').textContent = modeLabel(game.size, game.piecesPerRound);
   $('scoresList').innerHTML = list.length
     ? list
         .map(
@@ -248,6 +252,63 @@ function renderScores() {
         )
         .join('')
     : '<li class="empty">No scores yet — go play!</li>';
+}
+
+// ---------------------------------------------------------------- Settings
+
+const SIZE_HINTS = { 6: 'Tight — little room to recover', 7: 'Snug', 8: 'Classic', 9: 'Roomy', 10: 'Huge — long games' };
+const modeLabel = (size, pieces) => `${size}×${size} board · ${pieces} piece${pieces > 1 ? 's' : ''} per round`;
+const pending = {};
+
+function segmented(el, values, current, label, onPick) {
+  el.innerHTML = '';
+  for (const v of values) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.role = 'radio';
+    b.textContent = label(v);
+    b.setAttribute('aria-checked', String(v === current));
+    b.addEventListener('click', () => {
+      el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      onPick(v);
+    });
+    el.appendChild(b);
+  }
+}
+
+function updateSettingsHints() {
+  $('sizeHint').textContent = SIZE_HINTS[pending.boardSize] || '';
+  $('piecesHint').textContent = `${pending.pieces} new piece${pending.pieces > 1 ? 's' : ''} once the tray is empty`;
+  const changed = pending.boardSize !== game.size || pending.pieces !== game.piecesPerRound;
+  const inProgress = !game.over && game.stats.moves > 0;
+  $('settingsWarn').style.visibility = changed && inProgress ? 'visible' : 'hidden';
+  $('btnApplySettings').textContent = changed ? (inProgress ? 'Apply & restart' : 'Apply') : 'Done';
+}
+
+function openSettings() {
+  pending.boardSize = game.size;
+  pending.pieces = game.piecesPerRound;
+  const [lo, hi] = CONFIG.piecesRange;
+  const counts = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+  segmented($('optSize'), CONFIG.boardSizes, pending.boardSize, (v) => `${v}×${v}`, (v) => {
+    pending.boardSize = v;
+    updateSettingsHints();
+  });
+  segmented($('optPieces'), counts, pending.pieces, String, (v) => {
+    pending.pieces = v;
+    updateSettingsHints();
+  });
+  updateSettingsHints();
+  openModal('settingsModal');
+}
+
+function applySettings() {
+  const changed = pending.boardSize !== game.size || pending.pieces !== game.piecesPerRound;
+  if (!changed) return closeAllModals();
+  settings.boardSize = pending.boardSize;
+  settings.pieces = pending.pieces;
+  Storage.setSettings(settings);
+  newGame();
 }
 
 function buildThemeGrid() {
@@ -294,8 +355,9 @@ $('btnSound').addEventListener('click', () => {
 });
 $('btnPlayAgain').addEventListener('click', newGame);
 $('btnConfirmNew').addEventListener('click', newGame);
+$('btnApplySettings').addEventListener('click', applySettings);
 $('btnClearScores').addEventListener('click', () => {
-  Storage.clearHighscores();
+  Storage.clearHighscores(mode());
   bestAtStart = 0;
   updateBest();
   renderScores();
@@ -311,6 +373,7 @@ document.addEventListener('click', (e) => {
     else openModal('confirmModal');
   } else if (action === 'scores') openModal('scoresModal');
   else if (action === 'themes') openModal('themeModal');
+  else if (action === 'settings') openSettings();
   else if (action === 'help') openModal('helpModal');
 });
 

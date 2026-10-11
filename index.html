@@ -58,6 +58,7 @@
         <button class="btn" data-action="new">🔄 New Game</button>
         <button class="btn" data-action="scores">🏆 High Scores</button>
         <button class="btn" data-action="themes">🎨 Themes</button>
+        <button class="btn" data-action="settings">⚙️ Settings</button>
         <button class="btn" data-action="help">❓ How to Play</button>
       </div>
       <button class="btn ghost" data-close>Close</button>
@@ -70,9 +71,30 @@
       <button class="btn ghost" data-close>Done</button>
     </dialog>
 
+    <!-- Game settings -->
+    <dialog class="modal" id="settingsModal">
+      <h2>⚙️ Settings</h2>
+      <div class="setting">
+        <div class="setting-label">Board size</div>
+        <div class="segmented" id="optSize" role="radiogroup" aria-label="Board size"></div>
+        <div class="setting-hint" id="sizeHint"></div>
+      </div>
+      <div class="setting">
+        <div class="setting-label">Pieces per round</div>
+        <div class="segmented" id="optPieces" role="radiogroup" aria-label="Pieces per round"></div>
+        <div class="setting-hint" id="piecesHint"></div>
+      </div>
+      <p class="muted small-note" id="settingsWarn">Changing these starts a new game.</p>
+      <div class="row">
+        <button class="btn ghost" data-close>Cancel</button>
+        <button class="btn" id="btnApplySettings">Apply</button>
+      </div>
+    </dialog>
+
     <!-- High scores -->
     <dialog class="modal" id="scoresModal">
       <h2>🏆 High Scores</h2>
+      <p class="muted mode-label" id="scoresMode"></p>
       <ol class="scores" id="scoresList"></ol>
       <div class="row">
         <button class="btn ghost small" id="btnClearScores">Reset</button>

@@ -31,11 +31,19 @@ npm test           # logic unit tests (node:test, no deps)
 | Combo (clearing on consecutive moves) | ×1, ×1.5, ×2, ×2.5… — survives up to 2 non-clearing moves |
 | Empty the entire board | +300 |
 
-Each round deals 3 pieces; once all are placed you get 3 new ones. Pieces never rotate. The
+Each round deals 3 pieces (by default); once all are placed you get a new set. Pieces never rotate. The
 generator tries to deal at least one piece that fits, and larger pieces become more common as your
 score grows. All tuning lives in `js/config.js`.
 
-High scores (top 10), settings and the in-progress game are stored in `localStorage`.
+### Settings (☰ → ⚙️ Settings)
+
+- **Board size:** 6×6, 7×7, 8×8 (classic), 9×9, 10×10
+- **Pieces per round:** 1–6 (4–6 use a two-row tray)
+
+Changing either starts a new game. High scores are kept **separately for each combination**,
+since scores on a 10×10 board aren't comparable to a 6×6 one. The options are listed in `CONFIG.boardSizes` / `CONFIG.piecesRange`.
+
+High scores (top 10 per mode), settings and the in-progress game are stored in `localStorage`.
 
 ## Themes
 

@@ -5,8 +5,9 @@ import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, i
 import { randomPiece, makePiece } from './pieces.js';
 
 export class Game {
-  constructor({ size = CONFIG.boardSize, rng = Math.random } = {}) {
+  constructor({ size = CONFIG.boardSize, pieces = CONFIG.piecesPerRound, rng = Math.random } = {}) {
     this.size = size;
+    this.piecesPerRound = pieces;
     this.rng = rng;
     this.reset();
   }
@@ -24,7 +25,7 @@ export class Game {
 
   /** Deal a fresh set of pieces, trying to ensure at least one can be placed. */
   dealRound() {
-    const { piecesPerRound } = CONFIG;
+    const { piecesPerRound } = this;
     let pieces;
     for (let attempt = 0; attempt < CONFIG.generator.fairnessAttempts; attempt++) {
       pieces = Array.from({ length: piecesPerRound }, () => randomPiece(this.rng, this.score));
@@ -128,6 +129,7 @@ export class Game {
     return {
       v: 1,
       size: this.size,
+      pieces: this.piecesPerRound,
       grid: this.grid,
       tray: this.tray.map((p) => (p ? p.key : null)),
       score: this.score,
@@ -139,7 +141,10 @@ export class Game {
   }
 
   static fromJSON(data, opts = {}) {
-    if (!data || data.v !== 1 || data.size !== (opts.size ?? CONFIG.boardSize)) return null;
+    if (!data || data.v !== 1) return null;
+    // A saved game only resumes if it was played with the current settings.
+    if (data.size !== (opts.size ?? CONFIG.boardSize)) return null;
+    if ((data.pieces ?? CONFIG.piecesPerRound) !== (opts.pieces ?? CONFIG.piecesPerRound)) return null;
     try {
       const g = new Game(opts);
       g.grid = data.grid.slice();
