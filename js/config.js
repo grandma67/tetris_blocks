@@ -19,7 +19,7 @@ export const CONFIG = {
       doubleFrom: 8,            // from here a level can get two twists
       doubleChance: 0.35,
       stoneEvery: 2,            // rounds between stone drops
-      riseEvery: 3,             // rounds between rising rows
+      floorEvery: 3,            // rounds between stone-floor rows
     },
   },
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Game, STONE } from '../js/game.js';
 import { makePiece } from '../js/pieces.js';
 import { CONFIG } from '../js/config.js';
-import { levelModifiers, applyGravity, riseFloor, pickStoneCell } from '../js/modifiers.js';
+import { levelModifiers, applyGravity, stoneFloor, pickStoneCell } from '../js/modifiers.js';
 import { SeededRng, levelSeed } from '../js/rng.js';
 
 const N = 8;
@@ -32,7 +32,7 @@ test('level twists depend only on the level number', () => {
     if (n < CONFIG.levels.modifiers.doubleFrom) assert.ok(m.length <= 1);
     assert.equal(new Set(m).size, m.length, 'no duplicate twist');
   }
-  assert.deepEqual([...kinds].sort(), ['gravity', 'rising', 'stones']);
+  assert.deepEqual([...kinds].sort(), ['floor', 'gravity', 'stones']);
   assert.ok(normal > 30 && normal < 120, `some levels play normally (${normal}/199)`);
 });
 
@@ -60,18 +60,37 @@ test('gravity compacts each column and moves bombs along', () => {
   assert.deepEqual(fallen.sort(), [[6 * N + 2, 6], [7 * N + 2, 4]].sort());
 });
 
-test('rising floor shifts rows up and adds a junk row with one gap', () => {
+test('stone floor fills the lowest open row, keeps one gap, and climbs', () => {
   const g = blank();
-  g[7 * N + 1] = 4;
-  const r = riseFloor(g, N, new Set([7 * N + 1]), STONE, () => 0.5);
-  assert.equal(r.overflow, false);
-  assert.equal(r.grid[6 * N + 1], 4);
-  assert.deepEqual([...r.bombs], [6 * N + 1]);
-  const bottom = r.grid.slice(7 * N);
-  assert.equal(bottom.filter((v) => v === null).length, 1);
-  assert.equal(bottom[r.gap], null);
-  g[3] = 1;
-  assert.equal(riseFloor(g, N, new Set(), STONE, () => 0).overflow, true);
+  g[7 * N + 1] = 4; // a placed block in the bottom row turns to stone
+  let f = stoneFloor(g, N, new Set([7 * N + 1]), STONE, () => 0.5);
+  assert.equal(f.row, 7);
+  const bottom = f.grid.slice(7 * N);
+  assert.equal(bottom.filter((v) => v === null).length, 1, 'exactly one gap');
+  assert.equal(bottom[f.gap % N], null);
+  assert.equal(f.grid[7 * N + 1], STONE);
+  assert.equal(f.bombs.size, 0, 'bombs in the row are gone');
+  assert.equal(f.cells.length, N - 1, 'the placed block counts as converted');
+  // Next time it climbs to the row above.
+  f = stoneFloor(f.grid, N, f.bombs, STONE, () => 0.1);
+  assert.equal(f.row, 6);
+  assert.equal(f.grid.filter((v) => v === STONE).length, 2 * (N - 1));
+});
+
+test('stone floor never completes a column', () => {
+  const g = blank();
+  for (let r = 0; r < N - 1; r++) g[r * N + 3] = 1; // column 3 full except the bottom
+  const f = stoneFloor(g, N, new Set(), STONE, () => 0.99);
+  assert.equal(f.row, 7);
+  assert.equal(f.grid[7 * N + 3], null, 'left open so column 3 does not fill');
+  for (let c = 0; c < N; c++) {
+    assert.ok([...Array(N)].some((_, r) => f.grid[r * N + c] === null), `column ${c} not full`);
+  }
+});
+
+test('stone floor returns null when no row has room', () => {
+  const g = blank().map((_, i) => (i % N === 0 ? null : 1)); // every row has a single gap
+  assert.equal(stoneFloor(g, N, new Set(), STONE, Math.random), null);
 });
 
 test('stone cells never complete a line', () => {
@@ -125,16 +144,18 @@ test('without gravity, nothing falls', () => {
   assert.equal(g.grid[2 * N], 2);
 });
 
-test('rising floor fires every few rounds and can crush you', () => {
-  const g = levelGame(['rising']);
-  g.levelRound = CONFIG.levels.modifiers.riseEvery; // next refill rises
-  g.grid[7 * N + 3] = 1;
+test('stone floor fires every few rounds without ending the game', () => {
+  const g = levelGame(['floor']);
+  g.levelRound = CONFIG.levels.modifiers.floorEvery; // next refill adds a stone row
+  g.grid[3] = 1; // top-row block: used to be pushed off; now it stays
   g.tray = [makePiece('M1:0'), null, null];
   const res = g.tryPlace(g.tray[0].id, 0, 0);
-  assert.ok(res.roundEvents?.rise, 'rise on refill');
-  assert.equal(g.grid[6 * N + 3], 1, 'blocks moved up');
-  assert.equal(res.gameOver, true, 'the block placed in row 0 was pushed off the top');
-  assert.equal(res.crushed, true);
+  assert.ok(res.roundEvents?.floor, 'stone row on refill');
+  assert.equal(res.roundEvents.floor.row, 7);
+  assert.equal(g.grid[3], 1);
+  assert.notEqual(g.grid[0], null, 'the piece placed in the top row stays');
+  assert.equal(res.gameOver, false);
+  assert.equal(g.roundsUntil('floor'), CONFIG.levels.modifiers.floorEvery - 1);
 });
 
 test('stones drop every few rounds', () => {

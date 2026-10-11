@@ -293,9 +293,6 @@ button {
 .cell.stone-drop {
   animation: stoneDrop 0.4s cubic-bezier(0.5, 0, 0.75, 0) both;
 }
-.board.rising {
-  animation: rise 0.45s cubic-bezier(0.3, 1.3, 0.6, 1);
-}
 .cell.pop {
   animation: pop 0.28s cubic-bezier(0.3, 1.6, 0.6, 1);
 }
@@ -513,7 +510,7 @@ button {
   animation: fuse 0.8s ease-in-out infinite alternate;
 }
 
-/* Stones (level stones, stone drops, rising junk): same rough look in every theme. */
+/* Stones (level stones, stone drops, stone floor): same rough look in every theme. */
 [data-block] .cell.filled.stone {
   background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.28) 0 8%, transparent 9%),
     radial-gradient(circle at 70% 62%, rgba(0, 0, 0, 0.22) 0 7%, transparent 8%),
@@ -1372,11 +1369,6 @@ button {
   }
   60% {
     opacity: 1;
-  }
-}
-@keyframes rise {
-  from {
-    transform: translateY(var(--rise));
   }
 }
 @keyframes barGlow {

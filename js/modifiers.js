@@ -1,4 +1,4 @@
-// Level twists (stones, gravity, rising floor) as pure grid functions, plus
+// Level twists (stones, gravity, stone floor) as pure grid functions, plus
 // the seeded choice of which twists a level gets.
 import { CONFIG } from './config.js';
 import { SeededRng, levelSeed } from './rng.js';
@@ -6,7 +6,8 @@ import { SeededRng, levelSeed } from './rng.js';
 export const MODIFIERS = {
   stones: { icon: '🪨', name: 'Stones', short: 'Stone', desc: 'A stone drops in every few rounds' },
   gravity: { icon: '⬇', name: 'Gravity', short: 'Gravity', desc: 'Blocks fall after every clear' },
-  rising: { icon: '⬆', name: 'Rising floor', short: 'Rise', desc: 'A junk row pushes up every few rounds' },
+  // Same position as the old rising floor, so each level keeps the twist it was seeded with.
+  floor: { icon: '🧱', name: 'Stone floor', short: 'Stone row', desc: 'The lowest open row turns to stone every few rounds' },
 };
 
 /** Which twists level `n` has. Deterministic: depends only on the level number. */
@@ -47,17 +48,35 @@ export function applyGravity(grid, size, bombs) {
 }
 
 /**
- * Everything moves up one row and a junk row with a single gap appears at the
- * bottom. `overflow` is true when blocks were pushed off the top.
+ * Stone floor: the lowest row with at least two empty cells turns to stone,
+ * keeping one random gap (blocks already there turn to stone too). Successive
+ * calls climb row by row, so the floor grows; clearing a stone row lowers it.
+ * Never completes a line. Returns null when no row has room.
  */
-export function riseFloor(grid, size, bombs, junk, rand) {
-  let overflow = false;
-  for (let c = 0; c < size; c++) if (grid[c] !== null) overflow = true;
-  const next = grid.slice(size).concat(new Array(size).fill(junk));
-  const gap = Math.floor(rand() * size);
-  next[(size - 1) * size + gap] = null;
-  const nextBombs = new Set([...bombs].filter((i) => i >= size).map((i) => i - size));
-  return { grid: next, bombs: nextBombs, overflow, gap };
+export function stoneFloor(grid, size, bombs, stone, rand) {
+  for (let r = size - 1; r >= 0; r--) {
+    const row = Array.from({ length: size }, (_, c) => r * size + c);
+    const empties = row.filter((i) => grid[i] === null);
+    if (empties.length < 2) continue;
+    const gap = empties[Math.floor(rand() * empties.length)];
+    const next = grid.slice();
+    const nextBombs = new Set(bombs);
+    const cells = [];
+    for (const i of row) {
+      if (i === gap) continue;
+      if (next[i] === null) {
+        const c = i % size;
+        let colFull = true;
+        for (let rr = 0; rr < size && colFull; rr++) if (rr !== r && next[rr * size + c] === null) colFull = false;
+        if (colFull) continue; // filling this would complete a column
+      }
+      if (next[i] !== stone) cells.push(i);
+      next[i] = stone;
+      nextBombs.delete(i);
+    }
+    return { grid: next, bombs: nextBombs, row: r, gap, cells };
+  }
+  return null;
 }
 
 /** Index of a random empty cell (that doesn't complete a line), or null. */

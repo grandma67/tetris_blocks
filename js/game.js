@@ -4,7 +4,7 @@ import { CONFIG } from './config.js';
 import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, isEmpty, detonate } from './board.js';
 import { randomPiece, makePiece, rotateShape, orientations, shapeByKey } from './pieces.js';
 import { SeededRng, levelSeed } from './rng.js';
-import { levelModifiers, applyGravity, riseFloor, pickStoneCell } from './modifiers.js';
+import { levelModifiers, applyGravity, stoneFloor, pickStoneCell } from './modifiers.js';
 
 const NO_TWISTS = { rotate: false, bombs: false };
 /** Grid value for level stone blocks (rendered grey, not a piece color). */
@@ -22,7 +22,6 @@ export class Game {
     this.modifiers = [];
     this.levelRound = 0;
     this.roundEvents = null;
-    this.crushed = false;
     this.reset();
   }
 
@@ -35,9 +34,9 @@ export class Game {
     return this.modifiers.includes(name);
   }
 
-  /** Rounds until the next stone drop / rising row (0 = when the tray refills next). */
+  /** Rounds until the next stone drop / stone-floor row (0 = when the tray refills next). */
   roundsUntil(name) {
-    const every = name === 'rising' ? CONFIG.levels.modifiers.riseEvery : CONFIG.levels.modifiers.stoneEvery;
+    const every = name === 'floor' ? CONFIG.levels.modifiers.floorEvery : CONFIG.levels.modifiers.stoneEvery;
     return (every - (this.levelRound % every)) % every;
   }
 
@@ -83,7 +82,6 @@ export class Game {
     if (this.twists.rotate && Number.isInteger(rotations)) this.rotations = Math.min(CONFIG.rotate.max, rotations);
     if (runId) this.runId = runId;
     this.over = false;
-    this.crushed = false;
     this.setupLevel();
   }
 
@@ -128,21 +126,22 @@ export class Game {
     }
     this.tray = pieces;
     this.stats.rounds++;
-    this.over = this.crushed || this.checkGameOver();
+    this.over = this.checkGameOver();
   }
 
-  /** Stones / rising floor fire when the tray refills (never on a level's first round). */
+  /** Stone drops / stone floor fire when the tray refills (never on a level's first round). */
   applyRoundModifiers() {
     const events = {};
     const cfg = CONFIG.levels.modifiers;
     const lr = this.levelRound;
     if (this.mode === 'levels' && lr > 0) {
-      if (this.hasModifier('rising') && lr % cfg.riseEvery === 0) {
-        const r = riseFloor(this.grid, this.size, this.bombs, STONE, () => this.rand());
-        this.grid = r.grid;
-        this.bombs = r.bombs;
-        this.crushed = r.overflow;
-        events.rise = { gap: r.gap, overflow: r.overflow };
+      if (this.hasModifier('floor') && lr % cfg.floorEvery === 0) {
+        const f = stoneFloor(this.grid, this.size, this.bombs, STONE, () => this.rand());
+        if (f) {
+          this.grid = f.grid;
+          this.bombs = f.bombs;
+          events.floor = { row: f.row, gap: f.gap, cells: f.cells };
+        }
       }
       if (this.hasModifier('stones') && lr % cfg.stoneEvery === 0) {
         const i = pickStoneCell(this.grid, this.size, () => this.rand());
@@ -381,7 +380,6 @@ export class Game {
       steps,
       cascadePoints,
       roundEvents: newRound && !levelUp ? this.roundEvents : null,
-      crushed: this.crushed,
       rotations: this.rotations,
       newRound,
       gameOver: this.over,
@@ -398,7 +396,6 @@ export class Game {
       levelStartRotations: this.levelStartRotations,
       runId: this.runId,
       rngState: this.levelRng ? this.levelRng.state : null,
-      crushed: this.crushed,
       size: this.size,
       pieces: this.piecesPerRound,
       twists: this.twists,
@@ -442,7 +439,6 @@ export class Game {
         g.levelRng = new SeededRng(0);
         g.levelRng.state = data.rngState ?? levelSeed(g.level);
       }
-      g.crushed = !!data.crushed;
       g.levelStartRotations = data.levelStartRotations ?? g.rotations;
       if (data.runId) g.runId = data.runId;
       g.stats = { ...g.stats, ...data.stats };

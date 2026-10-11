@@ -86,7 +86,7 @@ export const Sound = {
     tone({ freq: 140, to: 35, dur: 0.6, type: 'sine', vol: 0.6, delay });
     tone({ freq: 80, to: 30, dur: 0.4, type: 'square', vol: 0.15, delay });
   },
-  rise() {
+  rumble() {
     tone({ freq: 70, to: 140, dur: 0.5, type: 'sawtooth', vol: 0.18 });
     noise({ dur: 0.4, vol: 0.15 });
   },

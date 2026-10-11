@@ -40,10 +40,11 @@ npm test           # logic unit tests (node:test, no deps)
     row or column clears.
   - ⬇ **Gravity** — after every clear, blocks fall down; lines formed by the fall clear too, each
     cascade raising the combo multiplier.
-  - ⬆ **Rising floor** — every 3 rounds the board shifts up and a junk row with one gap appears at
-    the bottom. Blocks pushed off the top end the run.
+  - 🧱 **Stone floor** — every 3 rounds the lowest row with room turns to stone, leaving one gap
+    (blocks already in that row turn to stone too). Each time it climbs a row higher, so the floor
+    grows; fill a gap to clear a stone row and push it back down. Never ends the game by itself.
 
-  A badge above the tray shows the level's twists and counts down to the next stone / rise.
+  A badge above the tray shows the level's twists and counts down to the next stone / stone row.
   Tuning: `CONFIG.levels.modifiers`; logic in `js/modifiers.js`, PRNG in `js/rng.js`.
 - **∞ Endless** — the classic mode: play until no piece fits.
 
@@ -124,7 +125,7 @@ css/style.css       layout, block styles, animations
 js/config.js        tuning
 js/pieces.js        piece catalogue + weighted generator
 js/board.js         pure grid logic
-js/modifiers.js     level twists: stones, gravity, rising floor
+js/modifiers.js     level twists: stones, gravity, stone floor
 js/rng.js           seedable PRNG (level number → seed)
 js/game.js          game state machine (score, combo, rounds, save/load)
 js/renderer.js      DOM board/tray rendering + clear animations

@@ -359,11 +359,14 @@ function afterSettle(res) {
   if (ev) {
     renderer.renderBoard(game.grid, game.bombs);
     const wrap = $('boardWrap').getBoundingClientRect();
-    if (ev.rise) {
-      renderer.animateRise();
-      Sound.rise();
-      fx.shake(1.5);
-      fx.floatText(ev.rise.overflow ? 'Crushed!' : '⬆ Floor rises!', wrap.left + wrap.width / 2, wrap.top + wrap.height * 0.75, 'combo-text');
+    if (ev.floor) {
+      // Sweep the new stone row in from the gap outwards.
+      const gapCol = ev.floor.gap % game.size;
+      for (const i of ev.floor.cells) renderer.animateStone(i, Math.abs((i % game.size) - gapCol) * 45);
+      Sound.rumble();
+      fx.shake(1);
+      const rowRect = renderer.cellCenter(ev.floor.row * game.size);
+      fx.floatText('🧱 Stone row!', wrap.left + wrap.width / 2, rowRect.y - 40, 'combo-text');
     }
     if (ev.stone !== undefined) {
       renderer.animateStone(ev.stone);

@@ -196,21 +196,14 @@ export class Renderer {
     }
   }
 
-  /** Rising floor: the whole board slides up one row. */
-  animateRise() {
-    const { step } = this.metrics();
-    this.boardEl.style.setProperty('--rise', `${step}px`);
-    this.boardEl.classList.remove('rising');
-    void this.boardEl.offsetWidth;
-    this.boardEl.classList.add('rising');
-  }
-
-  /** A stone drops into one cell. */
-  animateStone(index) {
+  /** A stone drops into one cell (optionally after a delay, for a row sweep). */
+  animateStone(index, delay = 0) {
     const cell = this.cells[index];
+    cell.style.animationDelay = delay ? `${delay}ms` : '';
     cell.classList.remove('stone-drop');
     void cell.offsetWidth;
     cell.classList.add('stone-drop');
+    cell.addEventListener('animationend', () => (cell.style.animationDelay = ''), { once: true });
   }
 
   /**
