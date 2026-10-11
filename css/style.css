@@ -4,7 +4,7 @@
    ============================================================ */
 
 :root {
-  color-scheme: only light;
+  color-scheme: light dark;
   --bg: #0d0221;
   --panel: rgba(255, 255, 255, 0.05);
   --panel-border: rgba(255, 255, 255, 0.15);

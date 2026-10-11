@@ -4,8 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#ff5fa2" />
-    <!-- Themes set their own colors; stop browsers from auto-darkening the page. -->
-    <meta name="color-scheme" content="only light" />
+    <!-- Declaring dark support is what stops Samsung Internet / Chrome from auto-darkening the
+         page; our themes ignore the OS scheme, so the colors stay the same in both modes. -->
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Block Fit — drag tetris pieces onto the board, clear rows and columns, chase the high score." />
     <title>Block Fit</title>
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -115,6 +116,17 @@
         <li>🔥 Keep clearing on consecutive moves to build a <b>combo</b> multiplier.</li>
         <li>✨ Empty the whole board for a huge bonus.</li>
         <li>☠️ If none of your pieces fits anywhere — game over!</li>
+      </ul>
+      <button class="btn" data-close>Got it</button>
+    </dialog>
+
+    <!-- Samsung Internet may still force-darken pages; explain the browser setting. -->
+    <dialog class="modal" id="darkTipModal">
+      <h2>Looks too dark?</h2>
+      <p class="muted">Samsung Internet's dark mode can darken the game's colors. To see the real colors:</p>
+      <ul class="help">
+        <li>☰ Menu → <b>Settings</b> → <b>Labs</b> → turn on <b>Use website dark theme</b></li>
+        <li>or turn off <b>Dark mode</b> in the Samsung Internet menu</li>
       </ul>
       <button class="btn" data-close>Got it</button>
     </dialog>

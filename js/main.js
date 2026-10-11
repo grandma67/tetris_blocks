@@ -399,8 +399,22 @@ buildThemeGrid();
 setTheme(theme);
 setSound(settings.sound);
 renderAll();
+// Samsung Internet can force-darken pages regardless of what the page declares,
+// so explain the browser setting once.
+function showDarkTipOnce() {
+  try {
+    const samsungDark = /SamsungBrowser/i.test(navigator.userAgent) && matchMedia('(prefers-color-scheme: dark)').matches;
+    if (!samsungDark || localStorage.getItem(CONFIG.storagePrefix + 'seenDarkTip')) return false;
+    localStorage.setItem(CONFIG.storagePrefix + 'seenDarkTip', '1');
+    openModal('darkTipModal');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 if (game.over) handleGameOver();
-else if (!Storage.getSavedGame()) {
+else if (!showDarkTipOnce() && !Storage.getSavedGame()) {
   Storage.saveGame(game.toJSON());
   try {
     if (!localStorage.getItem(CONFIG.storagePrefix + 'seenHelp')) {
