@@ -32,7 +32,7 @@ Installing needs HTTPS (GitHub Pages is fine) or `localhost`.
 
 ## Modes
 
-- **🎯 Levels (default)** — each level has a goal score (100, 175, 280, 415, 580… growing forever).
+- **🎯 Levels (default)** — each level has a goal score (100, 115, 130… about 1500 by level 60, growing forever).
   Reach it and you move on to a fresh board with +1 rotate token; from level 2 the board starts with
   grey stone blocks (more each level) and big pieces get more common. Run out of room before the goal
   and you **retry that same level** — score and rotate tokens go back to what you had when the level

@@ -277,7 +277,7 @@ test('save/load keeps bombs, rotations and twists', () => {
 
 test('level targets keep growing', () => {
   let prev = 0;
-  for (let n = 1; n <= 50; n++) {
+  for (let n = 1; n <= 200; n++) {
     const t = CONFIG.levels.target(n);
     assert.ok(t > prev, `level ${n}`);
     prev = t;

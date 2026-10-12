@@ -10,7 +10,8 @@ export const CONFIG = {
   // Levels mode: reach a point target per level; each new level starts with
   // a fresh board seeded with stone blocks.
   levels: {
-    target: (n) => 100 + 60 * (n - 1) + 15 * (n - 1) ** 2,  // 100, 175, 280, 415, 580…
+    // Gentle curve: ~+15 a level early on, reaching ~1500 around level 60.
+    target: (n) => Math.round((100 + 15 * (n - 1) + 0.15 * (n - 1) ** 2) / 5) * 5,  // 100, 115, 130… 245 (L10), 440 (L20), 1505 (L60)
     stones: (n, size) => Math.min(Math.floor((n - 1) * 1.5), Math.floor(size * size * 0.3)),
     difficultyPerLevel: 350,    // levels ramp piece sizes like this many endless points
     modifiers: {
