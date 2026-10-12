@@ -2,7 +2,7 @@
   "name": "Block Fit",
   "short_name": "Block Fit",
   "description": "Drag tetris pieces onto the board, clear rows and columns, chase the high score.",
-  "id": "./",
+  "id": "/tetris_blocks/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
