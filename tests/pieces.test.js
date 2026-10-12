@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import { SHAPES, rotateShape, randomPiece } from '../js/pieces.js';
 import { CONFIG } from '../js/config.js';
 
-test('every shape fits the tray and the smallest board', () => {
+test('every shape is well-formed and fits the tray and the smallest board', () => {
   const minBoard = Math.min(...CONFIG.boardSizes);
   for (const s of SHAPES) {
+    assert.ok(s.cells.length > 0, `${s.key} has no cells`);
+    assert.ok(s.cells.every(([r, c]) => r >= 0 && c >= 0 && r < s.h && c < s.w), `${s.key} has a cell outside its box`);
+    assert.equal(new Set(s.cells.map(String)).size, s.cells.length, `${s.key} repeats a cell`);
     assert.ok(s.w <= 5 && s.h <= 5 && s.w <= minBoard, `${s.key} is too big`);
     assert.ok(s.cells.some(([r]) => r === 0) && s.cells.some(([, c]) => c === 0), `${s.key} has an empty edge`);
   }

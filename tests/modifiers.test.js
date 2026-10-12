@@ -90,14 +90,15 @@ test('stone floor never completes a column', () => {
 
 test('stone floor returns null when no row has room', () => {
   const g = blank().map((_, i) => (i % N === 0 ? null : 1)); // every row has a single gap
-  assert.equal(stoneFloor(g, N, new Set(), STONE, Math.random), null);
+  assert.equal(stoneFloor(g, N, new Set(), STONE, () => 0.5), null);
 });
 
 test('stone cells never complete a line', () => {
   const g = blank();
   for (let c = 0; c < N - 1; c++) g[c] = 0; // row 0 missing only (0,7)
+  const rng = new SeededRng(levelSeed(3));
   for (let i = 0; i < 50; i++) {
-    const idx = pickStoneCell(g, N, Math.random);
+    const idx = pickStoneCell(g, N, () => rng.next());
     assert.notEqual(idx, 7);
     assert.equal(g[idx], null);
   }
@@ -116,11 +117,11 @@ function levelGame(mods) {
 
 test('gravity cascade clears newly formed lines and bumps the combo', () => {
   const g = levelGame(['gravity']);
-  // Row 7: full except col 0. Col 0 has a block at row 5 that will fall into (7,0)
-  // once row 6 (full except nothing) clears... build it step by step:
+  // Placing at (6,7) clears row 6; the block at (5,0) then falls into the
+  // hole at (7,0) and completes row 7 as a cascade.
   for (let c = 1; c < N; c++) g.grid[7 * N + c] = 0; // bottom row missing (7,0)
   for (let c = 0; c < N - 1; c++) g.grid[6 * N + c] = 1; // row 6 missing (6,7)
-  g.grid[5 * N] = 2; // will fall from (5,0) after row 6 clears, landing in (7,0)? no: (6,0) is cleared → falls to (7,0)? (7,0) empty → yes
+  g.grid[5 * N] = 2;
   g.grid[0] = 3; // keeps the board non-empty
   g.tray = [makePiece('M1:0'), makePiece('O:0'), null];
   const res = g.tryPlace(g.tray[0].id, 6, 7);
@@ -131,7 +132,7 @@ test('gravity cascade clears newly formed lines and bumps the combo', () => {
   assert.equal(second.combo, 2);
   assert.ok(res.cascadePoints > 0);
   assert.equal(g.combo, 2);
-  assert.equal(res.points, 1 + 10 + res.cascadePoints);
+  assert.equal(res.points, 1 + CONFIG.scoring.lineBase + res.cascadePoints);
 });
 
 test('without gravity, nothing falls', () => {
@@ -147,7 +148,7 @@ test('without gravity, nothing falls', () => {
 test('stone floor fires every few rounds without ending the game', () => {
   const g = levelGame(['floor']);
   g.levelRound = CONFIG.levels.modifiers.floorEvery; // next refill adds a stone row
-  g.grid[3] = 1; // top-row block: used to be pushed off; now it stays
+  g.grid[3] = 1; // existing blocks are not pushed off the top
   g.tray = [makePiece('M1:0'), null, null];
   const res = g.tryPlace(g.tray[0].id, 0, 0);
   assert.ok(res.roundEvents?.floor, 'stone row on refill');

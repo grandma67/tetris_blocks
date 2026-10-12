@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game, STONE } from '../js/game.js';
-import { makePiece, SHAPES } from '../js/pieces.js';
+import { makePiece } from '../js/pieces.js';
 import { CONFIG } from '../js/config.js';
 
 const N = CONFIG.boardSize;
@@ -24,14 +24,6 @@ function botMove(g, rng) {
 function seeded(seed = 1) {
   return () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 }
-
-test('every shape is well-formed', () => {
-  for (const s of SHAPES) {
-    assert.ok(s.cells.length > 0, s.key);
-    assert.ok(s.cells.every(([r, c]) => r < s.h && c < s.w), s.key);
-    assert.ok(s.w <= N && s.h <= N, s.key);
-  }
-});
 
 test('new game deals a full tray', () => {
   const g = new Game({ rng: seeded(7) });
@@ -126,11 +118,6 @@ test('board size and pieces per round are configurable', () => {
       assert.equal(g.tray.length, pieces);
     }
   }
-});
-
-test('every shape fits on the smallest board', () => {
-  const size = Math.min(...CONFIG.boardSizes);
-  assert.ok(SHAPES.every((s) => s.w <= size && s.h <= size));
 });
 
 test('saved game only resumes with matching settings', () => {
@@ -381,4 +368,52 @@ test('a levels run can resume at a checkpoint', () => {
   // Same level → same seeded start.
   assert.deepEqual(retry.grid, g.grid);
   assert.deepEqual(retry.tray.map((p) => p.key), g.tray.map((p) => p.key));
+});
+
+test('combo streak survives a few non-clearing moves, then breaks', () => {
+  const g = new Game({ rng: seeded(41) });
+  for (let c = 0; c < N - 1; c++) g.grid[c] = 0;
+  g.grid[N * (N - 1)] = 0; // keep board non-empty after the clear
+  g.tray = [makePiece('M1:0'), makePiece('M1:0'), makePiece('M1:0')];
+  assert.equal(g.tryPlace(g.tray[0].id, 0, N - 1).combo, 1);
+  for (let i = 1; i < CONFIG.scoring.comboGrace; i++) {
+    g.tray = [makePiece('M1:0'), makePiece('M1:0'), makePiece('M1:0')];
+    assert.equal(g.tryPlace(g.tray[0].id, 2 + i, 2 + i).combo, 1, 'still within the grace period');
+  }
+  g.tray = [makePiece('M1:0'), makePiece('M1:0'), makePiece('M1:0')];
+  assert.equal(g.tryPlace(g.tray[0].id, 2, 5).combo, 0, 'streak breaks after comboGrace quiet moves');
+});
+
+test('out-of-bounds, unknown piece and post-game-over placements are rejected', () => {
+  const g = new Game({ rng: seeded(43) });
+  g.tray = [makePiece('I3:0'), makePiece('M1:0'), null];
+  const before = g.toJSON();
+  assert.equal(g.tryPlace(g.tray[0].id, 0, N - 2).ok, false, 'runs off the right edge');
+  assert.equal(g.tryPlace(g.tray[0].id, -1, 0).ok, false, 'negative row');
+  assert.equal(g.tryPlace('no-such-id', 0, 0).ok, false);
+  assert.deepEqual(g.toJSON(), before, 'rejected moves change nothing');
+  g.over = true;
+  assert.equal(g.tryPlace(g.tray[1].id, 0, 0).ok, false);
+});
+
+test('rotate tokens never exceed the cap', () => {
+  const g = new Game({ rng: seeded(45) });
+  g.rotations = CONFIG.rotate.max;
+  for (let r = 0; r < 3; r++) for (let c = 1; c < N; c++) g.grid[r * N + c] = 0;
+  g.grid[N * (N - 1)] = 0;
+  g.tray = [makePiece('I3:1'), makePiece('M1:0'), null];
+  const res = g.tryPlace(g.tray[0].id, 0, 0);
+  assert.equal(res.lineCount, 3);
+  assert.equal(res.tokenEarned, false);
+  assert.equal(g.rotations, CONFIG.rotate.max);
+});
+
+test('corrupt or mismatched saves are rejected instead of crashing', () => {
+  const g = new Game({ rng: seeded(47) });
+  const good = JSON.parse(JSON.stringify(g.toJSON()));
+  assert.equal(Game.fromJSON(null), null);
+  assert.equal(Game.fromJSON({ ...good, grid: good.grid.slice(1) }), null, 'wrong grid length');
+  assert.equal(Game.fromJSON({ ...good, tray: [['nope:0', null]] }), null, 'unknown piece shape');
+  assert.equal(Game.fromJSON({ ...good, tray: 'garbage' }), null, 'unparseable tray');
+  assert.equal(Game.fromJSON(good, { mode: 'levels' }), null, 'endless save does not load as levels');
 });
