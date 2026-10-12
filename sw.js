@@ -1,7 +1,10 @@
 // Service worker: makes Block Fit installable and playable offline.
 // Network-first for the app's own files so a deploy shows up on the next launch;
 // the cache is only the offline fallback. Google Fonts are cache-first (they never change).
-const CACHE = 'block-fit-v1';
+// Only this game's cache is read: other apps on the same github.io origin have their own.
+// Bump CACHE when cached files change without changing their URL.
+const CACHE = 'block-fit-v2';
+const fromCache = (req, opts) => caches.open(CACHE).then((c) => c.match(req, opts));
 const CORE = [
   './',
   'index.html',
@@ -45,7 +48,7 @@ self.addEventListener('fetch', (e) => {
 
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
     e.respondWith(
-      caches.match(req).then(
+      fromCache(req).then(
         (hit) =>
           hit ||
           fetch(req).then((res) => {
@@ -68,6 +71,6 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./'))),
+      .catch(() => fromCache(req, { ignoreSearch: true }).then((hit) => hit || fromCache('./'))),
   );
 });
