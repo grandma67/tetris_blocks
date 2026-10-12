@@ -1,11 +1,10 @@
 # Graph Report - tetris_blocks  (2026-10-12)
 
 ## Corpus Check
-- 11 files · ~21,487 words
-- Verdict: corpus is large enough that graph structure adds value.
+- Corpus is ~21,487 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 290 nodes · 615 edges · 14 communities (10 shown, 4 thin omitted)
+- 290 nodes · 625 edges · 14 communities (10 shown, 4 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 44 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
@@ -31,35 +30,34 @@
 3. `FX` - 16 edges
 4. `makePiece()` - 11 edges
 5. `findFullLines()` - 10 edges
-6. `levelComplete()` - 9 edges
-7. `newGame()` - 9 edges
-8. `onDrop()` - 9 edges
-9. `renderAll()` - 9 edges
-10. `canPlaceAll()` - 9 edges
+6. `canPlaceAll()` - 9 edges
+7. `CONFIG` - 9 edges
+8. `renderAll()` - 9 edges
+9. `onDrop()` - 9 edges
+10. `levelComplete()` - 9 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `deploy job (collect _site, upload, deploy-pages)` --conceptually_related_to--> `PWA (manifest + service worker)`  [INFERRED]
-  .github/workflows/pages.yml → README.md
 - `levelGame()` --calls--> `Game`  [EXTRACTED]
   tests/modifiers.test.js → js/game.js
-- `#ambient background canvas` --implements--> `Visual & Audio Effects`  [INFERRED]
-  index.html → README.md
-- `#fx particles canvas` --implements--> `Visual & Audio Effects`  [INFERRED]
-  index.html → README.md
+- `deploy job (collect _site, upload, deploy-pages)` --conceptually_related_to--> `PWA (manifest + service worker)`  [INFERRED]
+  .github/workflows/pages.yml → README.md
 - `deploy job (collect _site, upload, deploy-pages)` --references--> `index.html (markup + dialogs)`  [EXTRACTED]
   .github/workflows/pages.yml → index.html
+- `Scorebar (score, combo, best, level progress)` --implements--> `Levels Mode`  [INFERRED]
+  index.html → README.md
+- `#modBadge level twist badge` --implements--> `Level Twists (modifiers)`  [INFERRED]
+  index.html → README.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Level twist modifiers (stones, gravity, stone floor)** — readme_level_twists, readme_stones_twist, readme_gravity_twist, readme_stone_floor_twist, readme_seeded_levels, index_modbadge [EXTRACTED 1.00]
-- **Modal dialog UI layer** — index_thememodal, index_settingsmodal, index_scoresmodal, index_helpmodal, index_darktipmodal, index_confirmmodal, index_gameovermodal [EXTRACTED 1.00]
 - **GitHub Pages deploy pipeline** — _github_workflows_pages, _github_workflows_pages_test_job, _github_workflows_pages_deploy_job, readme_no_build_step, index [INFERRED 0.85]
-- **PWA Icon Set rendered from icon.svg** — assets_icon_appicon, assets_icon_192_appicon, assets_icon_512_appicon, assets_icon_maskable_192_appicon, assets_icon_maskable_512_appicon, assets_apple_touch_icon_appicon [INFERRED 0.95]
 - **Level twists: stones, gravity, stone floor** — readme_level_twists, readme_stones_twist, readme_gravity_twist, readme_stone_floor_twist, readme_seeded_levels [EXTRACTED 1.00]
 - **Optional gameplay twists (Settings toggles)** — readme_rotate_tokens, readme_bomb_blocks, readme_settings, readme_per_combination_high_scores [EXTRACTED 1.00]
 - **Static hosting & offline delivery** — readme_no_build_step, readme_github_pages_deploy, readme_pages_workflow, readme_pwa, readme_network_first_service_worker [INFERRED 0.85]
+- **Modal dialog UI layer** — index_thememodal, index_settingsmodal, index_scoresmodal, index_helpmodal, index_darktipmodal, index_confirmmodal, index_gameovermodal [EXTRACTED 1.00]
+- **PWA Icon Set rendered from icon.svg** — assets_icon_appicon, assets_icon_192_appicon, assets_icon_512_appicon, assets_icon_maskable_192_appicon, assets_icon_maskable_512_appicon, assets_apple_touch_icon_appicon [INFERRED 0.95]
 
 ## Communities (14 total, 4 thin omitted)
 
@@ -69,11 +67,11 @@ Nodes (57): afterSettle(), animateScore(), applySettings(), bestAtStart, BOOM_CO
 
 ### Community 1 - "Board & Game Logic"
 Cohesion: 0.10
-Nodes (23): canPlace(), canPlaceAll(), clearLines(), createGrid(), detonate(), findFullLines(), fitsAnywhere(), isEmpty() (+15 more)
+Nodes (25): canPlace(), canPlaceAll(), clearLines(), createGrid(), detonate(), findFullLines(), fitsAnywhere(), isEmpty() (+17 more)
 
 ### Community 2 - "Config, Pieces & Twists"
 Cohesion: 0.09
-Nodes (23): CONFIG, STONE, modeKeyFor(), applyGravity(), levelModifiers(), MODIFIERS, pickStoneCell(), stoneFloor() (+15 more)
+Nodes (21): CONFIG, sameTwists(), STONE, modeKeyFor(), levelModifiers(), MODIFIERS, pickStoneCell(), stoneFloor() (+13 more)
 
 ### Community 3 - "Page Markup & Deploy"
 Cohesion: 0.07
@@ -104,7 +102,7 @@ Cohesion: 0.47
 Nodes (5): ensure(), noise(), SCALE, Sound, tone()
 
 ## Knowledge Gaps
-- **16 isolated node(s):** `#ambient background canvas`, `#fx particles canvas`, `#board game board`, `#tray pieces tray`, `#darkTipModal Samsung dark mode tip` (+11 more)
+- **16 isolated node(s):** `Synthesized WebAudio Sounds`, `prefers-reduced-motion Support`, `Project Layout`, `node:test Unit Tests`, `#board game board` (+11 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 69 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -112,16 +110,16 @@ Nodes (5): ensure(), noise(), SCALE, Sound, tone()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Game` connect `Board & Game Logic` to `App Controller (main.js)`, `Config, Pieces & Twists`?**
-  _High betweenness centrality (0.125) - this node is a cross-community bridge._
-- **What connects `#ambient background canvas`, `#fx particles canvas`, `#board game board` to the rest of the system?**
+  _High betweenness centrality (0.123) - this node is a cross-community bridge._
+- **What connects `Synthesized WebAudio Sounds`, `prefers-reduced-motion Support`, `Project Layout` to the rest of the system?**
   _16 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `App Controller (main.js)` be split into smaller, more focused modules?**
   _Cohesion score 0.07595628415300547 - nodes in this community are weakly interconnected._
 - **Why does `Renderer` connect `Rendering & Drag Input` to `App Controller (main.js)`?**
   _High betweenness centrality (0.101) - this node is a cross-community bridge._
 - **Should `Board & Game Logic` be split into smaller, more focused modules?**
-  _Cohesion score 0.1025974025974026 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10025062656641603 - nodes in this community are weakly interconnected._
 - **Why does `FX` connect `Visual Effects` to `App Controller (main.js)`?**
   _High betweenness centrality (0.070) - this node is a cross-community bridge._
 - **Should `Config, Pieces & Twists` be split into smaller, more focused modules?**
-  _Cohesion score 0.09024390243902439 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09487179487179487 - nodes in this community are weakly interconnected._
