@@ -1,7 +1,7 @@
 // Game state machine. No DOM access — it returns rich result objects that the
 // UI layer turns into rendering, sound and effects.
 import { CONFIG } from './config.js';
-import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, isEmpty, detonate } from './board.js';
+import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, canPlaceAll, isEmpty, detonate } from './board.js';
 import { randomPiece, makePiece, rotateShape, orientations, shapeByKey } from './pieces.js';
 import { SeededRng, levelSeed } from './rng.js';
 import { levelModifiers, applyGravity, stoneFloor, pickStoneCell } from './modifiers.js';
@@ -109,15 +109,23 @@ export class Game {
     this.dealRound();
   }
 
-  /** Deal a fresh set of pieces, trying to ensure at least one can be placed. */
+  /**
+   * Deal a fresh set of pieces, trying to ensure at least one can be placed.
+   * A level's opening tray is stricter: every piece must be usable.
+   */
   dealRound() {
+    const levelStart = this.mode === 'levels' && this.levelRound === 0;
     this.applyRoundModifiers();
     const { piecesPerRound } = this;
     const rand = () => this.rand();
     let pieces;
-    for (let attempt = 0; attempt < CONFIG.generator.fairnessAttempts; attempt++) {
-      pieces = Array.from({ length: piecesPerRound }, () => randomPiece(rand, this.difficulty));
-      if (pieces.some((p) => fitsAnywhere(this.grid, this.size, p.shape))) break;
+    if (levelStart) {
+      pieces = this.dealPlayable();
+    } else {
+      for (let attempt = 0; attempt < CONFIG.generator.fairnessAttempts; attempt++) {
+        pieces = Array.from({ length: piecesPerRound }, () => randomPiece(rand, this.difficulty));
+        if (pieces.some((p) => fitsAnywhere(this.grid, this.size, p.shape))) break;
+      }
     }
     if (this.twists.bombs) {
       for (const p of pieces) {
@@ -127,6 +135,38 @@ export class Game {
     this.tray = pieces;
     this.stats.rounds++;
     this.over = this.checkGameOver();
+  }
+
+  /**
+   * A tray that can be placed in full on the current board. Built slot by
+   * slot: a drawn piece is kept only if the tray so far still all fits (line
+   * clears and gravity included); otherwise it's redrawn, falling back to a
+   * single block.
+   */
+  dealPlayable() {
+    const settle = this.hasModifier('gravity') ? (g) => this.settleGravity(g) : undefined;
+    const pieces = [];
+    for (let slot = 0; slot < this.piecesPerRound; slot++) {
+      let pick = null;
+      for (let attempt = 0; attempt < CONFIG.generator.levelStartAttempts && !pick; attempt++) {
+        const p = randomPiece(() => this.rand(), this.difficulty);
+        if (canPlaceAll(this.grid, this.size, [...pieces, p].map((x) => x.shape), { settle })) pick = p;
+      }
+      pieces.push(pick ?? makePiece('M1:0'));
+    }
+    return pieces;
+  }
+
+  /** Gravity plus any cascading clears, for the playability check. */
+  settleGravity(grid) {
+    for (let guard = 0; guard < 30; guard++) {
+      const fall = applyGravity(grid, this.size, new Set());
+      if (!fall.fallen.length) break;
+      const lines = findFullLines(fall.grid, this.size);
+      if (!lines.rows.length && !lines.cols.length) return fall.grid;
+      grid = clearLines(fall.grid, this.size, lines).grid;
+    }
+    return grid;
   }
 
   /** Stone drops / stone floor fire when the tray refills (never on a level's first round). */

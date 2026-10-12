@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Game, STONE } from '../js/game.js';
 import { makePiece } from '../js/pieces.js';
 import { CONFIG } from '../js/config.js';
+import { canPlaceAll } from '../js/board.js';
 
 const N = CONFIG.boardSize;
 
@@ -416,4 +417,16 @@ test('corrupt or mismatched saves are rejected instead of crashing', () => {
   assert.equal(Game.fromJSON({ ...good, tray: [['nope:0', null]] }), null, 'unknown piece shape');
   assert.equal(Game.fromJSON({ ...good, tray: 'garbage' }), null, 'unparseable tray');
   assert.equal(Game.fromJSON(good, { mode: 'levels' }), null, 'endless save does not load as levels');
+});
+
+test("every level's opening tray can be placed in full", () => {
+  for (const [size, pieces] of [[8, 3], [6, 3], [10, 5], [7, 1]]) {
+    const g = new Game({ mode: 'levels', size, pieces });
+    for (let level = 1; level <= 60; level++) {
+      g.startAtLevel({ level });
+      const settle = g.hasModifier('gravity') ? (x) => g.settleGravity(x) : undefined;
+      assert.equal(g.tray.length, pieces);
+      assert.ok(canPlaceAll(g.grid, size, g.tray.map((p) => p.shape), { settle, budget: 1e6 }), `size ${size}, level ${level}`);
+    }
+  }
 });

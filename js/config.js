@@ -54,6 +54,7 @@ export const CONFIG = {
   // Piece generator: tries to deal at least one placeable piece.
   generator: {
     fairnessAttempts: 25,
+    levelStartAttempts: 40,     // draws per slot for a level's opening tray, which must fit in full
   },
 
   highscoreSlots: 10,

@@ -99,3 +99,34 @@ export function detonate(gridBefore, size, clearedIdx, bombs) {
   }
   return { explosions, blasted };
 }
+
+/**
+ * Can every shape be placed, one after another in some order, with full lines
+ * clearing between drops? `settle(grid)` runs after each clear (e.g. gravity).
+ * Gives up (returns false) after `budget` placements tried, so it stays cheap.
+ */
+export function canPlaceAll(grid, size, shapes, { settle = (g) => g, budget = 20000 } = {}) {
+  let tries = 0;
+  const solve = (g, left) => {
+    if (!left.length) return true;
+    const seen = new Set();
+    for (let k = 0; k < left.length; k++) {
+      const shape = left[k];
+      if (seen.has(shape.key)) continue;
+      seen.add(shape.key);
+      const rest = left.filter((_, j) => j !== k);
+      for (let r = 0; r <= size - shape.h; r++) {
+        for (let c = 0; c <= size - shape.w; c++) {
+          if (!canPlace(g, size, shape, r, c)) continue;
+          if (++tries > budget) return false;
+          let next = place(g, size, shape, r, c, -1);
+          const lines = findFullLines(next, size);
+          if (lines.rows.length || lines.cols.length) next = settle(clearLines(next, size, lines).grid);
+          if (solve(next, rest)) return true;
+        }
+      }
+    }
+    return false;
+  };
+  return solve(grid, shapes);
+}

@@ -21,7 +21,7 @@ const FAMILIES = [
 
   // --- Big pieces: the real threat ---
   { id: 'I5', weight: 2, tier: 2, shapes: [['#####'], ['#', '#', '#', '#', '#']] },
-  { id: 'Q3', weight: 2, tier: 2, shapes: [['###', '###', '###']] },
+  { id: 'Q3', weight: 0.8, tier: 2, shapes: [['###', '###', '###']] },
   { id: 'R6', weight: 2, tier: 2, shapes: [['###', '###'], ['##', '##', '##']] },
   { id: 'V5', weight: 2, tier: 2, shapes: [['###', '#..', '#..'], ['###', '..#', '..#'], ['#..', '#..', '###'], ['..#', '..#', '###']] },
 
