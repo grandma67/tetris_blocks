@@ -54,6 +54,12 @@ Installing needs HTTPS (GitHub Pages is fine) or `localhost`.
 
   A badge above the tray shows the level's twists and counts down to the next stone / stone row.
   Tuning: `CONFIG.levels.modifiers`; logic in `js/modifiers.js`, PRNG in `js/rng.js`.
+  **🤖 Solver.** In Levels, the 🤖 button searches for a way to finish the current level from the
+  current position. Because levels are seeded, it plays the real game model forward (future trays,
+  stone drops and floor rows included). It's capped at 10 seconds (`CONFIG.solver`). If it finds a
+  win, it plays the moves step by step with a hop-and-drop animation. Otherwise it says there's no
+  way to win, or that it ran out of time. The search runs in a Web Worker (`js/solver-worker.js`);
+  the logic is in `js/solver.js`.
 - **∞ Endless** — the classic mode: play until no piece fits.
 
 Each mode keeps its own saved game and high-score tables.
@@ -135,6 +141,7 @@ js/pieces.js        piece catalogue + weighted generator
 js/board.js         pure grid logic
 js/modifiers.js     level twists: stones, gravity, stone floor
 js/rng.js           seedable PRNG (level number → seed)
+js/solver.js        level solver (search) + solver-worker.js
 js/game.js          game state machine (score, combo, rounds, save/load)
 js/renderer.js      DOM board/tray rendering + clear animations
 js/input.js         pointer drag & drop (mouse/touch/pen)

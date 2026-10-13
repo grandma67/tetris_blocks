@@ -426,6 +426,21 @@ export class Game {
     };
   }
 
+  /** Cheap independent copy (no re-dealing), for search. */
+  clone() {
+    const g = Object.create(Game.prototype);
+    Object.assign(g, this);
+    g.grid = this.grid.slice();
+    g.bombs = new Set(this.bombs);
+    g.tray = this.tray.slice();
+    g.stats = { ...this.stats };
+    if (this.levelRng) {
+      g.levelRng = new SeededRng(0);
+      g.levelRng.state = this.levelRng.state;
+    }
+    return g;
+  }
+
   toJSON() {
     return {
       v: 1,

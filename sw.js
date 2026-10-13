@@ -3,7 +3,7 @@
 // the cache is only the offline fallback. Google Fonts are cache-first (they never change).
 // Only this game's cache is read: other apps on the same github.io origin have their own.
 // Bump CACHE when cached files change without changing their URL.
-const CACHE = 'block-fit-v3';
+const CACHE = 'block-fit-v4';
 const fromCache = (req, opts) => caches.open(CACHE).then((c) => c.match(req, opts));
 const CORE = [
   './',
@@ -23,6 +23,8 @@ const CORE = [
   'js/pieces.js',
   'js/modifiers.js',
   'js/rng.js',
+  'js/solver.js',
+  'js/solver-worker.js',
   'assets/icon.svg',
   'assets/icon-192.png',
   'assets/icon-512.png',

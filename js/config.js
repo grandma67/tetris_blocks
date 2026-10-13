@@ -57,6 +57,12 @@ export const CONFIG = {
     levelStartAttempts: 40,     // draws per slot for a level's opening tray, which must fit in full
   },
 
+  // 🤖 Level solver: search time cap and playback pacing.
+  solver: {
+    timeLimit: 10000,           // ms; give up and say so after this
+    stepPause: 300,             // ms between solution steps once the board settles
+  },
+
   highscoreSlots: 10,
   storagePrefix: 'blockfit.',
 };

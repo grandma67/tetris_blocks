@@ -31,6 +31,7 @@
         <button class="icon-btn" id="btnMenu" aria-label="Main menu">☰</button>
         <h1 class="logo">Block<span>Fit</span></h1>
         <div class="top-actions">
+          <button class="icon-btn" id="btnSolve" aria-label="Solve this level" hidden>🤖</button>
           <button class="icon-btn" id="btnTheme" aria-label="Change theme">🎨</button>
           <button class="icon-btn" id="btnSound" aria-label="Toggle sound">🔊</button>
         </div>
@@ -56,6 +57,7 @@
       <main class="board-wrap" id="boardWrap">
         <div class="board" id="board"></div>
         <div class="board-fx" id="boardFx"></div>
+        <div class="solver-toast" id="solverToast" role="status" aria-live="polite" hidden></div>
       </main>
 
       <div class="tray-wrap">

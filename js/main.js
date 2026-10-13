@@ -112,6 +112,7 @@ function updateLevelHud(complete = false) {
   $('bestStat').hidden = levels;
   $('levelStat').hidden = !levels;
   $('levelBar').hidden = !levels;
+  $('btnSolve').hidden = !levels;
   if (!levels) return;
   const target = game.levelTarget;
   const done = complete ? target : Math.min(game.levelScore, target);
@@ -474,6 +475,7 @@ function handleGameOver() {
 }
 
 function newGame() {
+  stopSolver();
   closeAllModals();
   Storage.clearSavedGame(game.mode);
   game = freshGame(game.mode);
@@ -487,6 +489,184 @@ function newGame() {
   Storage.saveGame(game.toJSON());
   updateHome();
   if (game.over) setTimeout(handleGameOver, 500);
+}
+
+// ---------------------------------------------------------------- Solver
+
+// The search runs in a worker; a found solution is then played through the
+// same onTap/onDrop paths a player uses, one cheerful step at a time.
+let solver = null; // { worker, timers } while thinking, { playing: true } during playback
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+let toastTimer;
+
+function solverToast(html, { step = false, hideAfter = 0 } = {}) {
+  const el = $('solverToast');
+  clearTimeout(toastTimer);
+  el.innerHTML = html;
+  el.classList.toggle('step', step);
+  el.hidden = false;
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
+  if (hideAfter) toastTimer = setTimeout(hideSolverToast, hideAfter);
+}
+
+function hideSolverToast() {
+  clearTimeout(toastTimer);
+  $('solverToast').hidden = true;
+}
+
+function stopSolver() {
+  if (!solver) return;
+  endSearch(solver);
+  solver = null;
+  $('btnSolve').classList.remove('solving');
+  renderer.clearPreview();
+  document.querySelectorAll('.solver-ghost').forEach((el) => el.remove());
+  $('tray').querySelectorAll('.piece').forEach((el) => el.classList.remove('dragging', 'solver-pick'));
+  hideSolverToast();
+}
+
+function endSearch(run) {
+  run.worker?.terminate();
+  run.timers.forEach((t) => clearTimeout(t) || clearInterval(t));
+  run.timers = [];
+}
+
+function startSolver() {
+  if (solver) return stopSolver();
+  if (busy || game.over || game.mode !== 'levels') return;
+  Sound.unlock();
+  Sound.pick();
+  const { timeLimit } = CONFIG.solver;
+  const run = { timers: [] };
+  solver = run;
+  $('btnSolve').classList.add('solving');
+
+  const t0 = performance.now();
+  const countdown = () => `${Math.max(0, Math.ceil((timeLimit - (performance.now() - t0)) / 1000))}s left · tap 🤖 to stop`;
+  solverToast(`<span class="bot">🤖</span> Thinking…<small>${countdown()}</small>`);
+  run.timers.push(setInterval(() => {
+    const small = $('solverToast').querySelector('small');
+    if (small) small.textContent = countdown();
+  }, 250));
+
+  const result = new Promise((resolve) => {
+    try {
+      run.worker = new Worker(new URL('./solver-worker.js', import.meta.url), { type: 'module' });
+    } catch {
+      return resolve({ status: 'error' });
+    }
+    run.worker.onmessage = (e) => resolve(e.data);
+    run.worker.onerror = () => resolve({ status: 'error' });
+    // Belt and braces: the worker stops itself at the limit, this catches a stuck one.
+    run.timers.push(setTimeout(() => resolve({ status: 'timeout' }), timeLimit + 1500));
+    run.worker.postMessage({ state: game.toJSON(), timeLimit });
+  });
+
+  // Let the robot "think" for a beat even when the answer is instant.
+  Promise.all([result, wait(900)]).then(([res]) => {
+    if (solver !== run) return;
+    endSearch(run);
+    if (res.status === 'win') return playSolution(res.moves, run);
+    solver = null;
+    $('btnSolve').classList.remove('solving');
+    Sound.invalid();
+    const msg = {
+      impossible: '🚫 No way to win from here<small>Every possible sequence of moves runs out of room before the goal.</small>',
+      timeout: `⏱️ No solution found in ${Math.round(timeLimit / 1000)} seconds<small>This one's too tangled for the robot — maybe you can crack it!</small>`,
+      error: '😵 The solver couldn\'t start<small>Your browser may not support it.</small>',
+    }[res.status] ?? '😵 Something went wrong';
+    solverToast(`<span class="bot">🤖</span> ${msg}`, { hideAfter: 5000 });
+  });
+}
+
+async function playSolution(moves, run) {
+  solverToast(`<span class="bot">🤖</span> Found a way!<small>${moves.length} move${moves.length > 1 ? 's' : ''} to clear Level ${game.level} — watch!</small>`);
+  Sound.token();
+  await wait(1400);
+  for (let i = 0; i < moves.length; i++) {
+    if (solver !== run) return;
+    await until(() => !busy || solver !== run);
+    if (solver !== run) return;
+    solverToast(`🤖 Step ${i + 1} / ${moves.length}`, { step: true });
+    const m = moves[i];
+
+    // Pick the piece up with a little hop, turning it first if the plan says so.
+    renderer.pieceEl(game.tray[m.slot]?.id)?.classList.add('solver-pick');
+    Sound.pick();
+    await wait(500);
+    for (let t = 0; t < m.turns && solver === run; t++) {
+      onTap(game.tray[m.slot].id);
+      await wait(450);
+    }
+    if (solver !== run) return;
+
+    const piece = game.tray[m.slot];
+    if (!piece || !game.canPlace(piece, m.row, m.col)) {
+      stopSolver();
+      solverToast('🤖 Oops, I lost track<small>Try asking me again.</small>', { hideAfter: 4000 });
+      return;
+    }
+    await flyPiece(piece, m.row, m.col);
+    if (solver !== run) return;
+    onDrop(piece.id, m.row, m.col);
+    await wait(reducedMotion() ? 300 : 700);
+  }
+  if (solver !== run) return;
+  solver = null;
+  $('btnSolve').classList.remove('solving');
+  solverToast('🤖 Solved! 🎉', { step: true, hideAfter: 1800 });
+}
+
+async function until(cond) {
+  while (!cond()) await wait(80);
+  await wait(CONFIG.solver.stepPause);
+}
+
+/** The piece hops from its tray slot onto the board in a bouncy arc, robot riding along. */
+function flyPiece(piece, row, col) {
+  const m = renderer.metrics();
+  const src = renderer.pieceEl(piece.id);
+  const ghost = buildPieceEl(piece, m.cell, m.step - m.cell, 'piece drag-ghost solver-ghost');
+  const bot = document.createElement('span');
+  bot.className = 'solver-bot';
+  bot.textContent = '🤖';
+  ghost.appendChild(bot);
+  const w = piece.shape.w * m.step - (m.step - m.cell);
+  const h = piece.shape.h * m.step - (m.step - m.cell);
+  const s = (src ?? $('tray')).getBoundingClientRect();
+  const x0 = s.left + s.width / 2 - w / 2;
+  const y0 = s.top + s.height / 2 - h / 2;
+  const x1 = m.left + col * m.step;
+  const y1 = m.top + row * m.step;
+  const peak = Math.min(y0, y1) - m.step * 1.5;
+  src?.classList.remove('solver-pick');
+  src?.classList.add('dragging');
+  document.body.appendChild(ghost);
+  const at = (x, y, scale, rot) => `translate(${x}px, ${y}px) scale(${scale}) rotate(${rot}deg)`;
+  const anim = ghost.animate(
+    [
+      { transform: at(x0, y0, 0.5, 0) },
+      { transform: at(x0 + (x1 - x0) * 0.5, peak, 1.15, -10), offset: 0.5 },
+      { transform: at(x1, y1 - m.step * 0.25, 1.06, 5), offset: 0.82 },
+      { transform: at(x1, y1, 1, 0) },
+    ],
+    { duration: reducedMotion() ? 200 : 900, easing: 'ease-in-out', fill: 'forwards' },
+  );
+  // Show where it's heading (and what it will clear) as it comes down.
+  const preview = setTimeout(() => {
+    ghost.classList.add('valid');
+    renderer.showPreview(piece, row, col, game.previewClear(piece, row, col));
+  }, reducedMotion() ? 0 : 450);
+  return anim.finished.then(() =>
+    wait(180).then(() => {
+      clearTimeout(preview);
+      renderer.clearPreview();
+      ghost.remove();
+    }),
+  );
 }
 
 // ---------------------------------------------------------------- Home page
@@ -541,6 +721,7 @@ function switchMode(gameMode) {
 }
 
 function showHome() {
+  stopSolver();
   closeAllModals();
   updateHome();
   $('home').classList.add('show');
@@ -717,11 +898,13 @@ new DragController({
   },
   onCancel: () => Sound.invalid(),
   onTap,
-  isBusy: () => busy,
+  isBusy: () => busy || !!solver,
 });
 
 $('btnMenu').addEventListener('click', showHome);
 $('btnTheme').addEventListener('click', () => openModal('themeModal'));
+$('btnSolve').addEventListener('click', startSolver);
+$('solverToast').addEventListener('click', () => !solver && hideSolverToast());
 $('btnSound').addEventListener('click', () => {
   setSound(!settings.sound);
   Sound.unlock();

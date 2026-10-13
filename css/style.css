@@ -431,6 +431,112 @@ button {
   opacity: 0;
 }
 
+/* ---------------------------------------------------------------- Solver */
+
+.icon-btn[hidden] {
+  display: none;
+}
+.icon-btn.solving {
+  animation: solverBob 0.9s ease-in-out infinite;
+  box-shadow: 0 0 14px var(--accent);
+}
+
+.solver-toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  max-width: 86%;
+  padding: 12px 18px;
+  border-radius: 18px;
+  background: rgba(20, 10, 30, 0.88);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 10px 24px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-weight: 700;
+  font-size: calc(15px * var(--font-scale, 1));
+  text-align: center;
+  line-height: 1.35;
+  transform: translate(-50%, -50%);
+  animation: solverToastIn 0.45s cubic-bezier(0.3, 1.6, 0.6, 1);
+  cursor: pointer;
+}
+.solver-toast[hidden] {
+  display: none;
+}
+.solver-toast small {
+  display: block;
+  margin-top: 4px;
+  font-weight: 500;
+  font-size: 0.82em;
+  opacity: 0.8;
+}
+.solver-toast .bot {
+  display: inline-block;
+  animation: solverBob 0.9s ease-in-out infinite;
+}
+/* While a solution plays: a small step counter at the top of the board. */
+.solver-toast.step {
+  top: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: calc(13px * var(--font-scale, 1));
+  transform: translate(-50%, -60%);
+  animation: solverStepIn 0.35s cubic-bezier(0.3, 1.6, 0.6, 1);
+  pointer-events: none;
+}
+
+.piece.mini.solver-pick {
+  animation: solverPick 0.5s cubic-bezier(0.3, 1.6, 0.6, 1);
+  filter: drop-shadow(0 0 10px var(--accent));
+}
+.solver-ghost {
+  filter: drop-shadow(0 0 12px var(--accent)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.4));
+}
+.solver-bot {
+  position: absolute;
+  top: -0.9em;
+  right: -0.7em;
+  font-size: 22px;
+  animation: solverBob 0.5s ease-in-out infinite;
+}
+
+@keyframes solverToastIn {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+}
+@keyframes solverStepIn {
+  0% {
+    transform: translate(-50%, -60%) scale(0.5);
+    opacity: 0;
+  }
+}
+@keyframes solverBob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(8deg);
+  }
+}
+@keyframes solverPick {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25) rotate(-6deg);
+  }
+  70% {
+    transform: scale(0.95) rotate(4deg);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
 /* ---------------------------------------------------------------- Twists */
 
 .tokens {
