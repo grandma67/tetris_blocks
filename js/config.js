@@ -14,6 +14,9 @@ export const CONFIG = {
     target: (n) => Math.round((100 + 15 * (n - 1) + 0.15 * (n - 1) ** 2) / 5) * 5,  // 100, 115, 130… 245 (L10), 440 (L20), 1505 (L60)
     stones: (n, size) => Math.min(Math.floor((n - 1) * 1.5), Math.floor(size * size * 0.3)),
     difficultyPerLevel: 350,    // levels ramp piece sizes like this many endless points
+    // A new level must let you place this many pieces in a row (or clear it sooner);
+    // otherwise its stones and opening tray are redrawn from the same seed.
+    lookahead: { pieces: 20, budget: 3000, attempts: 30 },
     modifiers: {
       from: 2,                  // level 1 always plays normally
       originalChance: 0.35,     // chance a level has no twist

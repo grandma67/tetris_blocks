@@ -5,6 +5,7 @@ import { createGrid, canPlace, place, findFullLines, clearLines, fitsAnywhere, c
 import { randomPiece, makePiece, rotateShape, orientations, shapeByKey } from './pieces.js';
 import { SeededRng, levelSeed } from './rng.js';
 import { levelModifiers, applyGravity, stoneFloor, pickStoneCell } from './modifiers.js';
+import { canPlayAhead } from './solver.js';
 
 const NO_TWISTS = { rotate: false, bombs: false };
 /** Grid value for level stone blocks (rendered grey, not a piece color). */
@@ -85,10 +86,13 @@ export class Game {
     this.setupLevel();
   }
 
-  /** Fresh board for the current level, seeded with stones that never complete a line. */
+  /**
+   * Fresh board for the current level, seeded with stones that never complete
+   * a line. The layout and opening tray are redrawn (continuing the level's
+   * seeded sequence, so every player still gets the same level) until the
+   * next pieces can all be placed — no level is lost before it starts.
+   */
   setupLevel() {
-    const n = this.size;
-    this.grid = createGrid(n);
     this.bombs = new Set();
     this.combo = 0;
     this.movesSinceClear = 0;
@@ -96,7 +100,20 @@ export class Game {
     this.levelStartRotations = this.rotations;
     this.levelRng = new SeededRng(levelSeed(this.level));
     this.modifiers = levelModifiers(this.level);
-    this.levelRound = 0;
+    const rounds = this.stats.rounds;
+    const { pieces, budget, attempts } = CONFIG.levels.lookahead;
+    for (let attempt = 1; ; attempt++) {
+      this.levelRound = 0;
+      this.layStones();
+      this.dealRound();
+      if (attempt >= attempts || canPlayAhead(this, pieces, budget)) break;
+    }
+    this.stats.rounds = rounds + 1;
+  }
+
+  layStones() {
+    const n = this.size;
+    this.grid = createGrid(n);
     let stones = CONFIG.levels.stones(this.level, n);
     for (let guard = 0; stones > 0 && guard < 500; guard++) {
       const i = Math.floor(this.rand() * n * n);
@@ -106,7 +123,6 @@ export class Game {
       if (rows.length || cols.length) this.grid[i] = null;
       else stones--;
     }
-    this.dealRound();
   }
 
   /**

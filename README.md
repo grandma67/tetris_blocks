@@ -52,6 +52,10 @@ Installing needs HTTPS (GitHub Pages is fine) or `localhost`.
     (blocks already in that row turn to stone too). Each time it climbs a row higher, so the floor
     grows; fill a gap to clear a stone row and push it back down. Never ends the game by itself.
 
+  Every level is checked when it's set up: the solver must be able to place the next 20 pieces
+  (or clear the level sooner). If it can't, the stones and opening tray are redrawn, continuing the
+  same seeded sequence, so the level is still identical for everyone (`CONFIG.levels.lookahead`).
+
   A badge above the tray shows the level's twists and counts down to the next stone / stone row.
   Tuning: `CONFIG.levels.modifiers`; logic in `js/modifiers.js`, PRNG in `js/rng.js`.
   **🤖 Solver.** In Levels, the 🤖 button searches for a way to finish the current level from the

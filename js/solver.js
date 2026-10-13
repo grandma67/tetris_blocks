@@ -1,53 +1,71 @@
 // Level solver. Levels are seeded, so every future tray, stone drop and floor
 // row follows deterministically from the moves made — the solver can play the
 // real Game model forward and search for a move sequence that reaches the goal.
-import { Game } from './game.js';
+// Works on Game instances only (no import of game.js, which uses this too).
 import { canPlace, place, findFullLines, clearLines } from './board.js';
 import { orientations, shapeByKey } from './pieces.js';
 
 /**
- * Search for a way to finish the current level.
+ * Search for a way to finish the current level of a levels-mode Game.
  * Returns { status: 'win', moves } | { status: 'impossible' } | { status: 'timeout' },
  * where each move is { slot, turns, row, col }: rotate the tray piece in `slot`
  * `turns` times, then drop it at row/col.
  */
-export function solveLevel(state, { timeLimit = 10000, now = () => Date.now() } = {}) {
-  const root = Game.fromJSON(state, { mode: 'levels', size: state.size, pieces: state.pieces, twists: state.twists });
-  if (!root || root.mode !== 'levels') return { status: 'impossible' };
-  if (root.over) return { status: 'impossible' };
+export function solveLevel(game, { timeLimit = 10000, now = () => Date.now() } = {}) {
+  if (!game || game.mode !== 'levels' || game.over) return { status: 'impossible' };
   const deadline = now() + timeLimit;
+  const res = search(game, { goal: (r) => !!r.levelUp, stop: () => now() > deadline });
+  if (res.moves) return { status: 'win', moves: res.moves };
+  return { status: res.stopped ? 'timeout' : 'impossible' };
+}
 
-  // Iterative widening: greedy passes that only follow the best few moves find
-  // most wins fast; the last pass tries everything, so finishing it is a proof.
+/**
+ * Can `pieces` pieces be placed one after another from here (or the level be
+ * cleared sooner)? Gives up after `budget` tries, counted rather than timed so
+ * the answer is the same on every device — level generation depends on it.
+ */
+export function canPlayAhead(game, pieces, budget) {
+  if (game.over) return false;
+  let tries = 0;
+  return !!search(game, { goal: (r, depth) => !!r.levelUp || depth >= pieces, stop: () => ++tries > budget }).moves;
+}
+
+/**
+ * Depth-first search over real Game moves until `goal(result, depth)` holds.
+ * Iterative widening: greedy passes that only follow the best few moves find
+ * most answers fast; the last pass tries everything, so finishing it is a proof.
+ * Returns { moves } on success, { stopped: true } if `stop()` cut it short, else {}.
+ */
+function search(root, { goal, stop }) {
   for (const width of [2, 4, 8, Infinity]) {
     const seen = new Set();
-    let timedOut = false;
-    const search = (game) => {
+    let stopped = false;
+    const dfs = (game, depth) => {
       const key = stateKey(game);
       if (seen.has(key)) return null;
       seen.add(key);
       for (const move of candidateMoves(game).slice(0, width)) {
-        if (now() > deadline) {
-          timedOut = true;
+        if (stop()) {
+          stopped = true;
           return null;
         }
         const child = game.clone();
         child.setupLevel = () => {}; // the next level's board is irrelevant here
         const res = play(child, move);
         if (!res) continue;
-        if (res.levelUp) return [move];
+        if (goal(res, depth + 1)) return [move];
         if (child.over) continue;
-        const rest = search(child);
+        const rest = dfs(child, depth + 1);
         if (rest) return [move, ...rest];
-        if (timedOut) return null;
+        if (stopped) return null;
       }
       return null;
     };
-    const moves = search(root);
-    if (moves) return { status: 'win', moves };
-    if (timedOut) return { status: 'timeout' };
+    const moves = dfs(root, 0);
+    if (moves) return { moves };
+    if (stopped) return { stopped: true };
   }
-  return { status: 'impossible' };
+  return {};
 }
 
 /** Apply a solver move to a Game. Returns the tryPlace result, or null if illegal. */
