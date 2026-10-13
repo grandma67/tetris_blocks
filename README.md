@@ -8,7 +8,7 @@ Pure HTML/CSS/JS (ES modules), **no build step** — it runs straight from GitHu
 ## Play locally
 
 ```bash
-npm start          # serves on http://localhost:8080 (any static server works)
+npm start          # serves on http://localhost:8090 (any static server works)
 npm test           # logic unit tests (node:test, no deps)
 ```
 

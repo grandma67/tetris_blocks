@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Themeable block-placement puzzle game. Static site, no build step.",
   "scripts": {
-    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "start": "npx --yes http-server -c-1 -p 8090 .",
     "test": "node --test tests/*.test.js"
   }
 }
